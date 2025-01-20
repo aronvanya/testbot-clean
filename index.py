@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
+WEBHOOK_URL = "https://testbot-clean.vercel.app/webhook"
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
