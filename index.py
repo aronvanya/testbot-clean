@@ -1,8 +1,13 @@
-# index.py
-from flask import Flask
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-@app.route("/")
-def home():
-    return "Hello, Vercel!"
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    data = request.get_json()
+    print(f"Received data: {data}")
+    return jsonify({"message": "Webhook received!"})
+
+@app.route('/')
+def index():
+    return "Server is running"
