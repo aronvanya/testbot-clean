@@ -101,5 +101,4 @@ def extract_video_url(page_content):
         return None
 
 if __name__ == '__main__':
-    os.system("pip install beautifulsoup4")
     app.run(debug=True)
