@@ -3,4 +3,4 @@ werkzeug==2.2.3
 requests
 beautifulsoup4
 instaloader
-moviepy
+
