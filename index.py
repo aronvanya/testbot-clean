@@ -3,6 +3,7 @@ import os
 import requests
 import instaloader
 import io
+import ffmpeg
 
 app = Flask(__name__)
 
@@ -61,6 +62,34 @@ def delete_message(chat_id, message_id):
     payload = {"chat_id": chat_id, "message_id": message_id}
     requests.post(url, json=payload)
 
+# Обработка видео для 1080p
+def process_video_to_1080p(video_bytes):
+    input_stream = io.BytesIO(video_bytes)
+    output_stream = io.BytesIO()
+
+    try:
+        process = (
+            ffmpeg
+            .input('pipe:0')
+            .output(
+                'pipe:1',
+                format='mp4',
+                vcodec='libx264',
+                acodec='aac',
+                video_bitrate='5M',
+                vf='scale=-2:1080',
+                preset='slow',
+                movflags='frag_keyframe+empty_moov',
+            )
+            .run_async(pipe_stdin=True, pipe_stdout=True, pipe_stderr=True)
+        )
+        output_stream.write(process.communicate(input=input_stream.read())[0])
+        output_stream.seek(0)
+        return output_stream
+    except ffmpeg.Error as e:
+        print(f"FFmpeg error: {e.stderr.decode()}")
+        return None
+
 # Функция для загрузки и отправки видео из Reels
 def send_reels_video(chat_id, reels_url):
     try:
@@ -74,17 +103,22 @@ def send_reels_video(chat_id, reels_url):
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
 
-            # Отправляем видео напрямую
+            processed_video = process_video_to_1080p(response.content)
+            if not processed_video:
+                print("Ошибка обработки видео.")
+                return False
+
+            # Отправляем обработанное видео
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
-            files = {"video": ("reels_video.mp4", response.content)}
+            files = {"video": ("reels_video.mp4", processed_video, "video/mp4")}
             data = {
                 "chat_id": chat_id,
-                "supports_streaming": False,
+                "supports_streaming": True,
                 "caption": "Ваше видео из Instagram Reels 🎥",
             }
             requests.post(url, data=data, files=files)
-
             return True
+
         else:
             print("Видео не найдено в посте.")
             return False
