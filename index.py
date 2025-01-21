@@ -8,35 +8,21 @@ app = Flask(__name__)
 WEBHOOK_URL = "https://testbot-clean.vercel.app/webhook"
 TELEGRAM_TOKEN = "7648873218:AAGs6RZlBrVjr1TkmMjO-jvoFT8PxXvSjyM"
 
-# Сообщения на русском языке (по умолчанию)
-default_messages = {
-    "start": "Привет! Этот бот поможет вам скачать видео из Instagram Reels. Просто отправьте ссылку на Reels.",
-    "processing": "Обрабатываю ссылку, подождите...",
-    "error": "Не удалось скачать видео. Проверьте ссылку.",
-    "invalid": "Отправьте корректную ссылку на Reels."
-}
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.get_json()
     if data and "message" in data:
         message = data["message"]
         chat_id = message["chat"]["id"]
-        text = message.get("text", "").strip().lower()
+        text = message.get("text", "")
 
-        # Команда /start
-        if text == "/start":
-            send_message(chat_id, default_messages["start"])
-            return jsonify({"message": "Start message sent"}), 200
-
-        # Обработка ссылки на Reels
         if 'instagram.com/reel/' in text:
-            send_message(chat_id, default_messages["processing"])
+            send_message(chat_id, "Обрабатываю ссылку, подождите...")
             success = send_reels_video(chat_id, text.strip())
             if not success:
-                send_message(chat_id, default_messages["error"])
+                send_message(chat_id, "Не удалось скачать видео. Пожалуйста, проверьте ссылку.")
         else:
-            send_message(chat_id, default_messages["invalid"])
+            send_message(chat_id, "Отправьте мне ссылку на Reels, и я помогу скачать видео.")
 
     return jsonify({"message": "Webhook received!"}), 200
 
@@ -54,22 +40,41 @@ def send_message(chat_id, text):
 def send_reels_video(chat_id, reels_url):
     try:
         loader = instaloader.Instaloader()
-        shortcode = reels_url.split("/")[-2]
-        post = instaloader.Post.from_shortcode(loader.context, shortcode)
 
+        # Парсим короткий код из ссылки
+        try:
+            shortcode = reels_url.split("/")[-2]
+            print(f"Parsed shortcode: {shortcode}")
+        except IndexError:
+            print("Error parsing shortcode from URL.")
+            return False
+
+        # Загружаем пост
+        try:
+            post = instaloader.Post.from_shortcode(loader.context, shortcode)
+            print(f"Post metadata fetched: {post}")
+        except Exception as e:
+            print(f"Error fetching post metadata: {e}")
+            return False
+
+        # Извлекаем URL видео
         video_url = post.video_url
+        print(f"Video URL: {video_url}")
+
         if video_url:
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
 
             video_content = response.content
+
+            # Отправляем видео
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
             files = {"video": ("reels_video.mp4", video_content)}
             data = {"chat_id": chat_id, "supports_streaming": True}
             response = requests.post(url, data=data, files=files)
 
             if response.status_code != 200:
-                print(f"Error from Telegram API: {response.json()}")
+                print(f"Telegram API error: {response.json()}")
                 return False
 
             return True
