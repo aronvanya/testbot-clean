@@ -14,8 +14,15 @@ def webhook():
     if data and "message" in data:
         message = data["message"]
         chat_id = message["chat"]["id"]
-        text = message.get("text", "")
+        text = message.get("text", "").strip()
 
+        # Обработка команды /start
+        if text == "/start":
+            send_message(chat_id, "Привет! Этот бот поможет вам скачать видео из Instagram Reels. Просто отправьте ссылку на Reels.")
+            send_message(chat_id, "Инструкция: отправьте ссылку на Reels, и вы получите видео в ответ. Бот также работает в группах!")
+            return jsonify({"message": "Start message sent"}), 200
+
+        # Обработка ссылки на Reels
         if 'instagram.com/reel/' in text:
             send_message(chat_id, "Обрабатываю ссылку, подождите...")
             success = send_reels_video(chat_id, text.strip())
@@ -42,25 +49,10 @@ def send_reels_video(chat_id, reels_url):
         loader = instaloader.Instaloader()
 
         # Парсим короткий код из ссылки
-        try:
-            shortcode = reels_url.split("/")[-2]
-            print(f"Parsed shortcode: {shortcode}")
-        except IndexError:
-            print("Error parsing shortcode from URL.")
-            return False
+        shortcode = reels_url.split("/")[-2]
+        post = instaloader.Post.from_shortcode(loader.context, shortcode)
 
-        # Загружаем пост
-        try:
-            post = instaloader.Post.from_shortcode(loader.context, shortcode)
-            print(f"Post metadata fetched: {post}")
-        except Exception as e:
-            print(f"Error fetching post metadata: {e}")
-            return False
-
-        # Извлекаем URL видео
         video_url = post.video_url
-        print(f"Video URL: {video_url}")
-
         if video_url:
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
