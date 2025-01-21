@@ -144,19 +144,11 @@ def delete_message(chat_id, message_id):
     payload = {"chat_id": chat_id, "message_id": message_id}
     requests.post(url, json=payload)
 
-# Функция для проверки требований Telegram к видео
-def is_valid_for_telegram(video_content):
-    video_size_mb = len(video_content) / (1024 * 1024)
-    # Проверяем размер файла
-    if video_size_mb > 20:
-        return False
-    # Дополнительные проверки можно добавить, например, анализ метаданных
-    return True
-
 # Функция для загрузки и отправки видео из Reels
 def send_reels_video(chat_id, reels_url):
     try:
         loader = instaloader.Instaloader()
+
         # Парсим короткий код из ссылки
         shortcode = reels_url.split("/")[-2]
         post = instaloader.Post.from_shortcode(loader.context, shortcode)
@@ -169,41 +161,28 @@ def send_reels_video(chat_id, reels_url):
             video_content = response.content
 
             # Проверяем, соответствует ли видео требованиям Telegram
-            if is_valid_for_telegram(video_content):
-                # Отправляем как видео
-                url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
-                files = {"video": ("reels_video.mp4", video_content)}
-                data = {
-                    "chat_id": chat_id,
-                    "supports_streaming": True,
-                    "caption": "Ваше видео из Instagram Reels 🎥",
-                    "parse_mode": "HTML"
-                }
-                response = requests.post(url, data=data, files=files)
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
+            files = {"video": ("reels_video.mp4", video_content)}
+            data = {
+                "chat_id": chat_id,
+                "supports_streaming": True,
+                "caption": "Ваше видео из Instagram Reels 🎥",
+                "parse_mode": "HTML"
+            }
+            response = requests.post(url, data=data, files=files)
 
-                if response.status_code != 200:
-                    print(f"Telegram API error when sending video: {response.json()}")
-                    return False
-            else:
-                send_message(chat_id, "⚠️ Видео не соответствует требованиям Telegram. Отправляю как документ для сохранения качества.")
-                # Отправляем как документ
-                url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
-                files = {"document": ("reels_video.mp4", video_content)}
-                data = {
-                    "chat_id": chat_id,
-                    "caption": "Ваше видео из Instagram Reels 🎥 (исходное качество сохранено)",
-                }
-                response = requests.post(url, data=data, files=files)
-                if response.status_code != 200:
-                    print(f"Telegram API error when sending document: {response.json()}")
-                    return False
+            if response.status_code != 200:
+                print(f"Telegram API error when sending video: {response.json()}")
+                return False
 
             return True
         else:
             print("Видео не найдено в посте.")
+            send_message(chat_id, "⚠️ Видео не найдено в посте. Проверьте ссылку.")
             return False
     except Exception as e:
         print(f"Error sending video: {e}")
+        send_message(chat_id, "⚠️ Произошла ошибка при обработке ссылки.")
         return False
 
 if __name__ == '__main__':
