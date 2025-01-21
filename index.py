@@ -9,18 +9,18 @@ app = Flask(__name__)
 WEBHOOK_URL = "https://testbot-clean.vercel.app/webhook"
 TELEGRAM_TOKEN = "7648873218:AAGs6RZlBrVjr1TkmMjO-jvoFT8PxXvSjyM"
 
-# Хранилище языковых настроек пользователей
+# Хранилище языковых настроек
 user_languages = defaultdict(lambda: "ru")  # По умолчанию русский язык
 
-# Сообщения на разных языках
+# Сообщения
 messages = {
     "start": {
-        "ru": "Привет! Выберите язык:",
-        "en": "Hello! Please choose a language:",
-        "vi": "Xin chào! Vui lòng chọn ngôn ngữ:"
+        "ru": "Привет! Выберите язык: Русский, English, Vietnamese.",
+        "en": "Hello! Please choose a language: Russian, English, Vietnamese.",
+        "vi": "Xin chào! Vui lòng chọn ngôn ngữ: Tiếng Nga, Tiếng Anh, Tiếng Việt."
     },
     "language_set": {
-        "ru": "Язык успешно установлен: Русский.",
+        "ru": "Язык установлен: Русский.",
         "en": "Language set to: English.",
         "vi": "Ngôn ngữ đã được chọn: Tiếng Việt."
     },
@@ -63,13 +63,13 @@ def webhook():
 
         # Обработка ссылки на Reels
         if 'instagram.com/reel/' in text:
-            lang = user_languages[chat_id]
+            lang = user_languages.get(chat_id, "ru")
             send_message(chat_id, messages["processing"][lang])
-            success = send_reels_video(chat_id, text.strip())
+            success = send_reels_video(chat_id, text)
             if not success:
                 send_message(chat_id, messages["error"][lang])
         else:
-            lang = user_languages[chat_id]
+            lang = user_languages.get(chat_id, "ru")
             send_message(chat_id, messages["invalid"][lang])
 
     return jsonify({"message": "Webhook received!"}), 200
@@ -107,8 +107,6 @@ def send_language_selection(chat_id):
 def send_reels_video(chat_id, reels_url):
     try:
         loader = instaloader.Instaloader()
-
-        # Парсим короткий код из ссылки
         shortcode = reels_url.split("/")[-2]
         post = instaloader.Post.from_shortcode(loader.context, shortcode)
 
@@ -118,17 +116,10 @@ def send_reels_video(chat_id, reels_url):
             response.raise_for_status()
 
             video_content = response.content
-
-            # Отправляем видео
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
             files = {"video": ("reels_video.mp4", video_content)}
             data = {"chat_id": chat_id, "supports_streaming": True}
-            response = requests.post(url, data=data, files=files)
-
-            if response.status_code != 200:
-                print(f"Telegram API error: {response.json()}")
-                return False
-
+            requests.post(url, data=data, files=files)
             return True
         else:
             print("Видео не найдено в посте.")
