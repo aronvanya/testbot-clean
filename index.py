@@ -1,58 +1,34 @@
 from flask import Flask, request, jsonify
 import os
-import logging
 import requests
-from telegram import Bot, Update
-from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 
 app = Flask(__name__)
 
-# Переменные окружения
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+# URL вебхука
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-bot = Bot(token=TELEGRAM_TOKEN)
-dispatcher = Dispatcher(bot, None, workers=0)
 
-logging.basicConfig(level=logging.INFO)
-
-# Обработчики команд
-def start(update: Update, context):
-    update.message.reply_text("Привет! Я бот Telegram.")
-
-def echo(update: Update, context):
-    update.message.reply_text(f"Вы сказали: {update.message.text}")
-
-# Добавление обработчиков
-dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
-
-# Маршрут для Webhook
-@app.route("/webhook", methods=["POST"])
+@app.route('/webhook', methods=['POST'])
 def webhook():
-    if request.method == "POST":
-        data = request.get_json(force=True)
-        if data:
-            logging.info(f"Update received: {data}")
-            update = Update.de_json(data, bot)
-            dispatcher.process_update(update)
-        return jsonify({"status": "ok"}), 200
-    return jsonify({"error": "Method not allowed"}), 405
+    data = request.get_json()
+    if data:
+        print(f"Received data: {data}")
+        # Здесь можно обработать данные
+    return jsonify({"message": "Webhook received!"}), 200
 
-# Корневой маршрут
-@app.route("/")
+@app.route('/')
 def index():
     return "Server is running", 200
 
-# Установка Webhook
-def set_webhook():
-    if TELEGRAM_TOKEN and WEBHOOK_URL:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={WEBHOOK_URL}/webhook"
-        response = requests.post(url)
-        if response.status_code == 200:
-            logging.info(f"Webhook set successfully: {response.json()}")
-        else:
-            logging.error(f"Failed to set webhook: {response.text}")
+# Настройка вебхука при запуске сервера
+@app.before_first_request
+def setup_webhook():
+    token = os.getenv("TELEGRAM_TOKEN")
+    if token and WEBHOOK_URL:
+        response = requests.post(
+            f"https://api.telegram.org/bot{token}/setWebhook",
+            json={"url": f"{WEBHOOK_URL}/webhook"}
+        )
+        print(f"Webhook setup response: {response.json()}")
 
-if __name__ == "__main__":
-    set_webhook()
-    app.run(host="0.0.0.0", port=5000)
+if __name__ == '__main__':
+    app.run(debug=True)
