@@ -26,6 +26,16 @@ messages = {
         "en": "Language set to: English.",
         "vi": "Ngôn ngữ đã được chọn: Tiếng Việt."
     },
+    "welcome": {
+        "ru": "Добро пожаловать! Этот бот поможет вам скачать видео из Instagram Reels. Просто отправьте ссылку, и я всё сделаю за вас!",
+        "en": "Welcome! This bot will help you download videos from Instagram Reels. Just send a link, and I'll handle the rest!",
+        "vi": "Chào mừng! Bot này sẽ giúp bạn tải video từ Instagram Reels. Chỉ cần gửi liên kết, tôi sẽ lo phần còn lại!"
+    },
+    "instruction": {
+        "ru": "Инструкция: отправьте ссылку на Reels, и вы получите видео в ответ. Бот также работает в группах: добавьте его в группу, и отправьте ссылку на Reels.",
+        "en": "Instruction: Send a Reels link, and you'll receive the video in return. The bot also works in groups: add it to a group and send a Reels link.",
+        "vi": "Hướng dẫn: Gửi liên kết Reels, và bạn sẽ nhận được video. Bot cũng hoạt động trong các nhóm: thêm nó vào nhóm và gửi liên kết Reels."
+    },
     "processing": {
         "ru": "Обрабатываю ссылку, подождите...",
         "en": "Processing your link, please wait...",
@@ -68,6 +78,8 @@ def webhook():
 
             lang = user_languages[chat_id]
             send_message(chat_id, messages["language_set"][lang])
+            send_message(chat_id, messages["welcome"][lang])
+            send_message(chat_id, messages["instruction"][lang])
             return jsonify({"message": "Language set"}), 200
 
         # Обработка ссылки на Reels
@@ -87,7 +99,6 @@ def webhook():
             send_message(chat_id, messages["invalid_reels"][lang])
 
     return jsonify({"message": "Webhook received!"}), 200
-
 @app.route('/')
 def index():
     return "Server is running", 200
@@ -143,7 +154,6 @@ def is_valid_for_telegram(video_content):
     return True
 
 # Функция для загрузки и отправки видео из Reels
-
 def send_reels_video(chat_id, reels_url):
     try:
         loader = instaloader.Instaloader()
@@ -165,9 +175,9 @@ def send_reels_video(chat_id, reels_url):
                 files = {"video": ("reels_video.mp4", video_content)}
                 data = {
                     "chat_id": chat_id,
-                    "supports_streaming": True,  # Включена поддержка потокового воспроизведения
+                    "supports_streaming": True,
                     "caption": "Ваше видео из Instagram Reels 🎥",
-                    "parse_mode": "HTML"  # Опционально для форматирования текста
+                    "parse_mode": "HTML"
                 }
                 response = requests.post(url, data=data, files=files)
 
