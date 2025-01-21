@@ -19,22 +19,25 @@ def webhook():
 
         # Обработка команды /start
         if text == "/start":
-            send_message(chat_id, "Привет! Этот бот поможет вам скачать видео из Instagram Reels.")
-            send_message(chat_id, "Просто отправьте ссылку на Reels, и я сделаю всё за вас.")
-            send_message(chat_id, "Бот также работает в группах. Просто добавьте его в группу и отправьте ссылку на Reels.")
+            send_message(chat_id, (
+                "👋 *Привет!*\n\n"
+                "Этот бот поможет вам скачать видео из Instagram Reels. 📹\n\n"
+                "Просто отправьте ссылку на Reels, и я сделаю всё за вас. ✅\n\n"
+                "✨ *Бот также работает в группах!* ✨\n"
+                "Добавьте его в группу и отправьте ссылку на Reels, чтобы получить видео. 🚀"
+            ), parse_mode="Markdown")
             return jsonify({"message": "Start command processed"}), 200
 
         # Обработка ссылки на Reels
         if 'instagram.com/reel/' in text:
-            processing_message_id = send_message(chat_id, "Обрабатываю ссылку, подождите...")
-
+            processing_message_id = send_message(chat_id, "⏳ Обрабатываю ссылку, подождите...")
             success = send_reels_video(chat_id, text.strip())
             if success:
                 # Удаляем сообщения после успешной отправки
                 delete_message(chat_id, processing_message_id)
                 delete_message(chat_id, message_id)
             else:
-                send_message(chat_id, "Не удалось скачать видео. Проверьте ссылку.")
+                send_message(chat_id, "❌ Не удалось скачать видео. Проверьте ссылку.")
             return jsonify({"message": "Reels link processed"}), 200
 
         # Игнорируем все остальные сообщения
@@ -46,9 +49,11 @@ def webhook():
 def index():
     return "Server is running", 200
 
-def send_message(chat_id, text):
+def send_message(chat_id, text, parse_mode=None):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
     response = requests.post(url, json=payload)
     # Возвращаем ID сообщения для последующего удаления
     return response.json().get("result", {}).get("message_id")
