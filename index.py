@@ -14,6 +14,7 @@ def webhook():
     if data and "message" in data:
         message = data["message"]
         chat_id = message["chat"]["id"]
+        message_id = message["message_id"]
         text = message.get("text", "")
 
         # Обработка команды /start
@@ -24,9 +25,14 @@ def webhook():
 
         # Обработка ссылки на Reels
         if 'instagram.com/reel/' in text:
-            send_message(chat_id, "Обрабатываю ссылку, подождите...")
+            processing_message_id = send_message(chat_id, "Обрабатываю ссылку, подождите...")
+
             success = send_reels_video(chat_id, text.strip())
-            if not success:
+            if success:
+                # Удаляем сообщения после успешной отправки
+                delete_message(chat_id, processing_message_id)
+                delete_message(chat_id, message_id)
+            else:
                 send_message(chat_id, "Не удалось скачать видео. Проверьте ссылку.")
             return jsonify({"message": "Reels link processed"}), 200
 
@@ -42,6 +48,13 @@ def index():
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
+    response = requests.post(url, json=payload)
+    # Возвращаем ID сообщения для последующего удаления
+    return response.json().get("result", {}).get("message_id")
+
+def delete_message(chat_id, message_id):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteMessage"
+    payload = {"chat_id": chat_id, "message_id": message_id}
     requests.post(url, json=payload)
 
 def send_reels_video(chat_id, reels_url):
