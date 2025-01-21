@@ -82,15 +82,13 @@ def send_reels_video(chat_id, reels_url, user_name):
 
             video_content = response.content
 
-            # Отправляем видео с описанием
-            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
-            files = {"video": ("reels_video.mp4", video_content)}
-            data = {
-                "chat_id": chat_id,
-                "caption": f"📹 Видео от @{user_name} 🚀",
-                "supports_streaming": True
-            }
-            requests.post(url, data=data, files=files)
+            # Проверка требований Telegram
+            if not is_valid_for_telegram(video_content):
+                # Отправляем видео как документ
+                send_video_as_document(chat_id, video_content, user_name)
+            else:
+                # Отправляем видео как потоковое
+                send_video_as_stream(chat_id, video_content, user_name)
 
             return True
         else:
@@ -99,6 +97,33 @@ def send_reels_video(chat_id, reels_url, user_name):
     except Exception as e:
         print(f"Error sending video: {e}")
         return False
+
+def is_valid_for_telegram(video_content):
+    video_size_mb = len(video_content) / (1024 * 1024)
+    # Проверка размера файла (до 20 MB)
+    if video_size_mb > 20:
+        return False
+    # Пропустим дополнительные проверки (длина, соотношение сторон) для упрощения
+    return True
+
+def send_video_as_stream(chat_id, video_content, user_name):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
+    files = {"video": ("reels_video.mp4", video_content)}
+    data = {
+        "chat_id": chat_id,
+        "caption": f"📹 Видео от @{user_name} 🚀",
+        "supports_streaming": True
+    }
+    requests.post(url, data=data, files=files)
+
+def send_video_as_document(chat_id, video_content, user_name):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
+    files = {"document": ("reels_video.mp4", video_content)}
+    data = {
+        "chat_id": chat_id,
+        "caption": f"📁 Видео от @{user_name} (отправлено как файл) 🚀"
+    }
+    requests.post(url, data=data, files=files)
 
 if __name__ == '__main__':
     app.run(debug=True)
