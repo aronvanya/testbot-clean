@@ -2,7 +2,8 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
-from moviepy.editor import VideoFileClip
+from moviepy.editor import VideoFileClip, concatenate_videoclips
+from moviepy.video.fx.resize import resize
 import io
 
 app = Flask(__name__)
@@ -81,6 +82,21 @@ def send_reels_video(chat_id, reels_url):
 
             # Обрабатываем видео с помощью moviepy
             clip = VideoFileClip(video_data)
+            # Изменяем размер для соответствия пропорциям Telegram (16:9)
+            target_width = 1280
+            target_height = 720
+            clip = resize(clip, height=target_height) if clip.size[1] > target_height else clip
+
+            # Если пропорции не подходят, добавляем черные полосы
+            if clip.size[0] != target_width or clip.size[1] != target_height:
+                clip = clip.margin(
+                    left=(target_width - clip.size[0]) // 2,
+                    right=(target_width - clip.size[0]) // 2,
+                    top=(target_height - clip.size[1]) // 2,
+                    bottom=(target_height - clip.size[1]) // 2,
+                    color=(0, 0, 0)
+                )
+
             processed_video = io.BytesIO()
             clip.write_videofile(
                 processed_video,
