@@ -73,9 +73,13 @@ def send_reels_video(chat_id, reels_url):
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
 
+            # Отправляем видео как файл видео с поддержкой оригинального разрешения
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
             files = {"video": ("reels_video.mp4", response.content)}
-            data = {"chat_id": chat_id}
+            data = {
+                "chat_id": chat_id,
+                "supports_streaming": False,  # Отключаем потоковую передачу для сохранения оригинального разрешения
+            }
             requests.post(url, data=data, files=files)
             return True
         else:
