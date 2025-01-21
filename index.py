@@ -5,8 +5,8 @@ import requests
 app = Flask(__name__)
 
 # URL вебхука
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+WEBHOOK_URL = "https://testbot-clean.vercel.app/webhook"
+TELEGRAM_TOKEN = "7648873218:AAGs6RZlBrVjr1TkmMjO-jvoFT8PxXvSjyM"
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -40,7 +40,7 @@ def setup_webhook():
     if TELEGRAM_TOKEN and WEBHOOK_URL:
         response = requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook",
-            json={"url": f"{WEBHOOK_URL}/webhook"}
+            json={"url": f"{WEBHOOK_URL}"}
         )
         print(f"Webhook setup response: {response.json()}")
 
