@@ -1,16 +1,16 @@
 from flask import Flask, request, jsonify
 import os
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup  # Парсинг HTML для извлечения ссылки на видео
 
 app = Flask(__name__)
 
-BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
+# URL вебхука
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.get_json()
-
     if not data or "message" not in data:
         return jsonify({"error": "Invalid request"}), 400
 
@@ -18,26 +18,31 @@ def webhook():
     chat_id = message["chat"]["id"]
     text = message.get("text", "")
 
-    if "instagram.com/reel/" not in text:
-        send_message(chat_id, "❌ This is not a valid Instagram Reel link.")
-        return jsonify({"message": "Not a Reel URL"}), 200
-
-    try:
+    if "instagram.com/reel/" in text:
         video_url = download_reel(text)
-        if not video_url:
-            raise ValueError("Failed to extract video URL.")
+        if video_url:
+            send_video(chat_id, video_url)
+            return jsonify({"message": "Reel sent successfully"}), 200
+        else:
+            send_message(chat_id, "❌ Unable to download the video. Please try again later.")
+            return jsonify({"error": "Failed to download Reel"}), 500
 
-        send_video(chat_id, video_url)
-        return jsonify({"message": "Reel downloaded and sent successfully!"}), 200
-
-    except Exception as e:
-        print(f"Error: {e}")
-        send_message(chat_id, "❌ Failed to download the Reel. Please try again later.")
-        return jsonify({"error": str(e)}), 500
+    send_message(chat_id, "❌ Please send a valid Instagram Reel link.")
+    return jsonify({"message": "Not a valid Reel URL"}), 200
 
 @app.route('/')
 def index():
     return "Server is running", 200
+
+@app.before_first_request
+def setup_webhook():
+    token = os.getenv("TELEGRAM_TOKEN")
+    if token and WEBHOOK_URL:
+        response = requests.post(
+            f"https://api.telegram.org/bot{token}/setWebhook",
+            json={"url": f"{WEBHOOK_URL}/webhook"}
+        )
+        print(f"Webhook setup response: {response.json()}")
 
 def download_reel(instagram_url):
     """Скачивает видео из Instagram Reels через парсинг страницы"""
@@ -63,15 +68,17 @@ def download_reel(instagram_url):
 
 def send_message(chat_id, text):
     """Отправляет текстовое сообщение в Telegram"""
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    token = os.getenv("TELEGRAM_TOKEN")
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
     requests.post(url, json=payload)
 
 def send_video(chat_id, video_url):
     """Отправляет видео в Telegram"""
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendVideo"
+    token = os.getenv("TELEGRAM_TOKEN")
+    url = f"https://api.telegram.org/bot{token}/sendVideo"
     payload = {"chat_id": chat_id, "video": video_url}
     requests.post(url, json=payload)
 
-if __name__ == "__main__":
-    app.run()
+if __name__ == '__main__':
+    app.run(debug=True)
