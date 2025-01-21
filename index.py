@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import os
 import requests
+from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
@@ -67,8 +68,6 @@ def download_reels_video(reels_url):
         response = requests.get(reels_url, headers=headers)
         response.raise_for_status()
 
-        # Вставьте здесь логику для извлечения прямой ссылки на видео (например, через парсинг HTML или API Instagram)
-        # В примере предполагается, что у вас уже есть готовая функция extract_video_url
         video_url = extract_video_url(response.text)
 
         if video_url:
@@ -87,11 +86,20 @@ def download_reels_video(reels_url):
         print(f"Error downloading video: {e}")
         return None
 
-# Заглушка функции для извлечения видео URL (замените своей реализацией)
+# Реализация функции для извлечения видео URL
 def extract_video_url(page_content):
-    # Парсинг HTML и поиск ссылки на видео
-    # Верните прямую ссылку на видео
-    return None
+    try:
+        soup = BeautifulSoup(page_content, 'html.parser')
+        video_tag = soup.find('meta', property='og:video')
+        if video_tag and video_tag.get('content'):
+            return video_tag['content']
+        else:
+            print("Видео ссылка не найдена")
+            return None
+    except Exception as e:
+        print(f"Ошибка при извлечении видео ссылки: {e}")
+        return None
 
 if __name__ == '__main__':
+    os.system("pip install beautifulsoup4")
     app.run(debug=True)
