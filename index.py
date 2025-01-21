@@ -1,6 +1,7 @@
 import os
 from flask import Flask, request, jsonify
 import requests
+import re
 
 app = Flask(__name__)
 
@@ -8,32 +9,47 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
-# Приветствия на трех языках
-WELCOME_MESSAGES = {
-    "en": "👋 Welcome! This bot helps you download Instagram Reels. Please choose your language:",
-    "ru": "👋 Добро пожаловать! Этот бот поможет вам скачать рилсы из Instagram. Пожалуйста, выберите язык:",
-    "vi": "👋 Xin chào! Bot này sẽ giúp bạn tải Reels từ Instagram. Vui lòng chọn ngôn ngữ:"
-}
-
-INSTRUCTIONS = {
-    "en": (
-        "You can send me a link directly or add me to a group, and I'll process links shared there.\n\n"
-        "Commands:\n"
-        "/start - Restart the bot\n"
-        "/help - Get instructions"
-    ),
-    "ru": (
-        "Вы можете отправить мне ссылку напрямую или добавить меня в группу, и я обработаю ссылки, которые там будут отправлены.\n\n"
-        "Команды:\n"
-        "/start - Перезапустить бота\n"
-        "/help - Получить инструкции"
-    ),
-    "vi": (
-        "Bạn có thể gửi liên kết trực tiếp hoặc thêm tôi vào nhóm, và tôi sẽ xử lý các liên kết được chia sẻ ở đó.\n\n"
-        "Lệnh:\n"
-        "/start - Khởi động lại bot\n"
-        "/help - Nhận hướng dẫn"
-    ),
+# Приветствия и инструкции на трех языках
+MESSAGES = {
+    "en": {
+        "welcome": "👋 Welcome! This bot helps you download Instagram Reels. Please choose your language:",
+        "instruction": (
+            "You can send me a link directly or add me to a group, and I'll process links shared there.\n\n"
+            "Commands:\n"
+            "/start - Restart the bot\n"
+            "/help - Get instructions"
+        ),
+        "language_updated": "✅ Language updated to English.",
+        "invalid_link": "❌ This is not a valid Instagram Reel link. Please send a correct link.",
+        "processing": "⏳ Processing your request...",
+        "success": "✅ Reel downloaded successfully! (Example link)",
+    },
+    "ru": {
+        "welcome": "👋 Добро пожаловать! Этот бот поможет вам скачать рилсы из Instagram. Пожалуйста, выберите язык:",
+        "instruction": (
+            "Вы можете отправить мне ссылку напрямую или добавить меня в группу, и я обработаю ссылки, которые там будут отправлены.\n\n"
+            "Команды:\n"
+            "/start - Перезапустить бота\n"
+            "/help - Получить инструкции"
+        ),
+        "language_updated": "✅ Язык обновлен на русский.",
+        "invalid_link": "❌ Это не ссылка на рилс из Instagram. Отправьте корректную ссылку.",
+        "processing": "⏳ Обработка вашего запроса...",
+        "success": "✅ Рилс успешно скачан! (Пример ссылки)",
+    },
+    "vi": {
+        "welcome": "👋 Xin chào! Bot này sẽ giúp bạn tải Reels từ Instagram. Vui lòng chọn ngôn ngữ:",
+        "instruction": (
+            "Bạn có thể gửi liên kết trực tiếp hoặc thêm tôi vào nhóm, và tôi sẽ xử lý các liên kết được chia sẻ ở đó.\n\n"
+            "Lệnh:\n"
+            "/start - Khởi động lại bot\n"
+            "/help - Nhận hướng dẫn"
+        ),
+        "language_updated": "✅ Ngôn ngữ đã được chuyển sang Tiếng Việt.",
+        "invalid_link": "❌ Đây không phải là liên kết Instagram Reels hợp lệ. Vui lòng gửi liên kết chính xác.",
+        "processing": "⏳ Đang xử lý yêu cầu của bạn...",
+        "success": "✅ Tải xuống Reels thành công! (Liên kết ví dụ)",
+    },
 }
 
 USER_LANGUAGES = {}  # Хранение выбранных языков для пользователей
@@ -56,31 +72,37 @@ def handle_message(message):
     text = message.get("text", "").strip()
 
     # Проверка, выбрал ли пользователь язык
-    if chat_id in USER_LANGUAGES:
-        lang = USER_LANGUAGES[chat_id]
-    else:
-        lang = "en"  # Язык по умолчанию
+    lang = USER_LANGUAGES.get(chat_id, "en")  # Язык по умолчанию — английский
 
     if text == "/start":
-        send_language_selection(chat_id)
+        send_start_message(chat_id)
     elif text in ["English", "Русский", "Tiếng Việt"]:
         set_user_language(chat_id, text)
     elif text == "/help":
-        send_message(chat_id, INSTRUCTIONS[lang])
-    elif text.startswith("http"):
-        download_reel(chat_id, text, lang)
+        send_message(chat_id, MESSAGES[lang]["instruction"])
+    elif is_instagram_reel_link(text):
+        process_reel(chat_id, text, lang)
     else:
-        send_message(chat_id, "❓ Sorry, I don't understand. Please send a valid Instagram Reel link or use /help.")
+        # Игнорируем невалидные сообщения
+        send_message(chat_id, MESSAGES[lang]["invalid_link"])
 
 
-def send_language_selection(chat_id):
-    """Отправка кнопок для выбора языка."""
+def is_instagram_reel_link(text):
+    """Проверка, является ли текст ссылкой на Instagram Reel."""
+    pattern = r"(https?:\/\/(?:www\.)?instagram\.com\/reel\/[a-zA-Z0-9_-]+)"
+    return re.match(pattern, text) is not None
+
+
+def send_start_message(chat_id):
+    """Отправка приветствия, инструкции и кнопки выбора языка."""
+    lang = "en"  # Начальный язык по умолчанию
     keyboard = {
         "keyboard": [[{"text": "English"}], [{"text": "Русский"}], [{"text": "Tiếng Việt"}]],
         "one_time_keyboard": True,
         "resize_keyboard": True,
     }
-    send_message(chat_id, WELCOME_MESSAGES["en"], keyboard)
+    message = f"{MESSAGES[lang]['welcome']}\n\n{MESSAGES[lang]['instruction']}"
+    send_message(chat_id, message, keyboard)
 
 
 def set_user_language(chat_id, language):
@@ -93,7 +115,8 @@ def set_user_language(chat_id, language):
         USER_LANGUAGES[chat_id] = "vi"
 
     lang = USER_LANGUAGES[chat_id]
-    send_message(chat_id, INSTRUCTIONS[lang])
+    message = f"{MESSAGES[lang]['language_updated']}\n\n{MESSAGES[lang]['instruction']}"
+    send_message(chat_id, message)
 
 
 def send_message(chat_id, text, reply_markup=None):
@@ -105,11 +128,11 @@ def send_message(chat_id, text, reply_markup=None):
     requests.post(url, json=payload)
 
 
-def download_reel(chat_id, url, lang):
+def process_reel(chat_id, url, lang):
     """Обработка ссылки на рилс и отправка результата."""
     try:
-        send_message(chat_id, f"🔗 {url}\n⏳ {INSTRUCTIONS[lang].splitlines()[0]}")  # Сообщение на выбранном языке
-        send_message(chat_id, "✅ Reel downloaded successfully! (Example link)")
+        send_message(chat_id, MESSAGES[lang]["processing"])
+        send_message(chat_id, f"✅ {MESSAGES[lang]['success']}\n🔗 {url}")
     except Exception as e:
         send_message(chat_id, f"❌ Failed to process the link. Error: {e}")
 
