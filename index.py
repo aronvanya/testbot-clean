@@ -8,35 +8,6 @@ app = Flask(__name__)
 WEBHOOK_URL = "https://testbot-clean.vercel.app/webhook"
 TELEGRAM_TOKEN = "7648873218:AAGs6RZlBrVjr1TkmMjO-jvoFT8PxXvSjyM"
 
-# Сообщения на разных языках
-messages = {
-    "start": {
-        "ru": "Привет! Этот бот поможет вам скачать видео из Instagram Reels. Просто отправьте ссылку, и я сделаю всё за вас.",
-        "en": "Hello! This bot will help you download videos from Instagram Reels. Just send a link, and I'll handle it for you.",
-        "vi": "Xin chào! Bot này sẽ giúp bạn tải video từ Instagram Reels. Chỉ cần gửi liên kết và tôi sẽ xử lý nó."
-    },
-    "instruction": {
-        "ru": "Инструкция: отправьте ссылку на Reels, и вы получите видео в ответ. Чтобы сменить язык, используйте кнопки ниже.",
-        "en": "Instruction: Send a Reels link, and you'll get the video in return. Use the buttons below to change the language.",
-        "vi": "Hướng dẫn: Gửi liên kết Reels và bạn sẽ nhận được video. Sử dụng các nút bên dưới để thay đổi ngôn ngữ."
-    },
-    "processing": {
-        "ru": "Обрабатываю ссылку, подождите...",
-        "en": "Processing your link, please wait...",
-        "vi": "Đang xử lý liên kết của bạn, vui lòng đợi..."
-    },
-    "error": {
-        "ru": "Не удалось скачать видео. Проверьте ссылку.",
-        "en": "Failed to download the video. Please check the link.",
-        "vi": "Không tải được video. Vui lòng kiểm tra liên kết."
-    },
-    "invalid": {
-        "ru": "Отправьте корректную ссылку на Reels.",
-        "en": "Please send a valid Reels link.",
-        "vi": "Vui lòng gửi liên kết Reels hợp lệ."
-    }
-}
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.get_json()
@@ -52,21 +23,14 @@ def webhook():
             send_language_menu(chat_id)
             return jsonify({"message": "Start command processed"}), 200
 
-        # Выбор языка
-        if text in ["русский", "english", "vietnamese"]:
-            lang = "ru" if text == "русский" else "en" if text == "english" else "vi"
-            send_message(chat_id, messages["start"][lang])
-            send_message(chat_id, messages["instruction"][lang])
-            return jsonify({"message": "Language selected"}), 200
-
         # Обработка ссылки на Reels
         if 'instagram.com/reel/' in text:
-            send_message(chat_id, messages["processing"]["ru"])  # По умолчанию русский
+            send_message(chat_id, "Обрабатываю ссылку, подождите...")
             success = send_reels_video(chat_id, text.strip())
             if not success:
-                send_message(chat_id, messages["error"]["ru"])
+                send_message(chat_id, "Не удалось скачать видео. Проверьте ссылку.")
         else:
-            send_message(chat_id, messages["invalid"]["ru"])
+            send_message(chat_id, "Отправьте корректную ссылку на Reels.")
 
     return jsonify({"message": "Webhook received!"}), 200
 
