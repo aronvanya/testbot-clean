@@ -4,6 +4,8 @@ import requests
 import yt_dlp
 
 app = Flask(__name__)
+
+# Получаем токен бота и Webhook URL из переменных окружения
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
@@ -23,10 +25,12 @@ def webhook():
         return jsonify({"message": "Not a Reel URL"}), 200
 
     try:
+        # Загружаем видео
         video_url = download_reel(text)
         if not video_url:
             raise ValueError("Failed to extract video URL.")
 
+        # Отправляем видео в Telegram
         send_video(chat_id, video_url)
         return jsonify({"message": "Reel downloaded and sent successfully!"}), 200
 
@@ -47,9 +51,13 @@ def download_reel(instagram_url):
         'outtmpl': '/tmp/%(id)s.%(ext)s',
     }
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(instagram_url, download=False)
-        return info.get('url', None)
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(instagram_url, download=False)
+            return info.get('url', None)
+    except Exception as e:
+        print(f"Ошибка в yt_dlp: {e}")
+        return None
 
 def send_message(chat_id, text):
     """Функция для отправки текстового сообщения в Telegram"""
