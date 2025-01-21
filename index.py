@@ -2,6 +2,8 @@ import os
 from flask import Flask, request, jsonify
 import requests
 import re
+import tempfile
+from pathlib import Path
 
 app = Flask(__name__)
 
@@ -22,7 +24,8 @@ MESSAGES = {
         "language_updated": "✅ Language updated to English.",
         "invalid_link": "❌ This is not a valid Instagram Reel link. Please send a correct link.",
         "processing": "⏳ Processing your request...",
-        "success": "✅ Reel downloaded successfully! (Example link)",
+        "success": "✅ Reel downloaded successfully!",
+        "error": "❌ Failed to download the Reel. Please try again later.",
     },
     "ru": {
         "welcome": "👋 Добро пожаловать! Этот бот поможет вам скачать рилсы из Instagram. Пожалуйста, выберите язык:",
@@ -35,7 +38,8 @@ MESSAGES = {
         "language_updated": "✅ Язык обновлен на русский.",
         "invalid_link": "❌ Это не ссылка на рилс из Instagram. Отправьте корректную ссылку.",
         "processing": "⏳ Обработка вашего запроса...",
-        "success": "✅ Рилс успешно скачан! (Пример ссылки)",
+        "success": "✅ Рилс успешно скачан!",
+        "error": "❌ Не удалось скачать рилс. Попробуйте позже.",
     },
     "vi": {
         "welcome": "👋 Xin chào! Bot này sẽ giúp bạn tải Reels từ Instagram. Vui lòng chọn ngôn ngữ:",
@@ -48,7 +52,8 @@ MESSAGES = {
         "language_updated": "✅ Ngôn ngữ đã được chuyển sang Tiếng Việt.",
         "invalid_link": "❌ Đây không phải là liên kết Instagram Reels hợp lệ. Vui lòng gửi liên kết chính xác.",
         "processing": "⏳ Đang xử lý yêu cầu của bạn...",
-        "success": "✅ Tải xuống Reels thành công! (Liên kết ví dụ)",
+        "success": "✅ Tải xuống Reels thành công!",
+        "error": "❌ Không tải được Reels. Hãy thử lại sau.",
     },
 }
 
@@ -81,7 +86,7 @@ def handle_message(message):
     elif text == "/help":
         send_message(chat_id, MESSAGES[lang]["instruction"])
     elif is_instagram_reel_link(text):
-        process_reel(chat_id, text, lang)
+        download_and_send_reel(chat_id, text, lang)
     else:
         # Игнорируем невалидные сообщения
         send_message(chat_id, MESSAGES[lang]["invalid_link"])
@@ -128,13 +133,33 @@ def send_message(chat_id, text, reply_markup=None):
     requests.post(url, json=payload)
 
 
-def process_reel(chat_id, url, lang):
-    """Обработка ссылки на рилс и отправка результата."""
+def download_and_send_reel(chat_id, url, lang):
+    """Скачивание и отправка рилса."""
     try:
         send_message(chat_id, MESSAGES[lang]["processing"])
-        send_message(chat_id, f"✅ {MESSAGES[lang]['success']}\n🔗 {url}")
+
+        # Здесь используем сторонний сервис для скачивания видео
+        response = requests.get(f"https://api.downloadgram.org/?url={url}", stream=True)
+        response.raise_for_status()
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_file:
+            for chunk in response.iter_content(chunk_size=1024):
+                if chunk:
+                    temp_file.write(chunk)
+            temp_file_path = temp_file.name
+
+        # Отправка видео
+        with open(temp_file_path, "rb") as video_file:
+            requests.post(
+                f"{TELEGRAM_API_URL}/sendVideo",
+                data={"chat_id": chat_id},
+                files={"video": video_file},
+            )
+
+        send_message(chat_id, MESSAGES[lang]["success"])
+
     except Exception as e:
-        send_message(chat_id, f"❌ Failed to process the link. Error: {e}")
+        send_message(chat_id, f"{MESSAGES[lang]['error']}\n\nError: {e}")
 
 
 @app.route('/')
