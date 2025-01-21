@@ -5,9 +5,9 @@ import yt_dlp
 
 app = Flask(__name__)
 
-# Получаем токен бота и Webhook URL из переменных окружения
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+COOKIES_FILE = "cookies.txt"  # Добавьте файл куков, если он был использован в прошлом боте.
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -25,12 +25,12 @@ def webhook():
         return jsonify({"message": "Not a Reel URL"}), 200
 
     try:
-        # Загружаем видео
+        # Скачиваем видео
         video_url = download_reel(text)
         if not video_url:
             raise ValueError("Failed to extract video URL.")
 
-        # Отправляем видео в Telegram
+        # Отправляем видео
         send_video(chat_id, video_url)
         return jsonify({"message": "Reel downloaded and sent successfully!"}), 200
 
@@ -44,12 +44,16 @@ def index():
     return "Server is running", 200
 
 def download_reel(instagram_url):
-    """Функция для скачивания видео из Instagram Reels"""
+    """Скачивает видео из Instagram Reels"""
     ydl_opts = {
         'quiet': True,
         'format': 'mp4',
         'outtmpl': '/tmp/%(id)s.%(ext)s',
     }
+
+    # Если используется файл куков, добавляем его
+    if os.path.exists(COOKIES_FILE):
+        ydl_opts['cookiefile'] = COOKIES_FILE
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -60,13 +64,13 @@ def download_reel(instagram_url):
         return None
 
 def send_message(chat_id, text):
-    """Функция для отправки текстового сообщения в Telegram"""
+    """Отправляет текстовое сообщение в Telegram"""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
     requests.post(url, json=payload)
 
 def send_video(chat_id, video_url):
-    """Функция для отправки видео в Telegram"""
+    """Отправляет видео в Telegram"""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendVideo"
     payload = {"chat_id": chat_id, "video": video_url}
     requests.post(url, json=payload)
