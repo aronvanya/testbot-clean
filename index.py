@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
-import subprocess
+from moviepy.editor import VideoFileClip
 import io
 
 app = Flask(__name__)
@@ -75,37 +75,25 @@ def send_reels_video(chat_id, reels_url):
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
 
-            # Сохраняем оригинальное видео в оперативную память
+            # Загружаем видео в память
             video_data = io.BytesIO(response.content)
             video_data.seek(0)
 
-            # Обрабатываем видео с помощью ffmpeg (оперативная память)
-            processed_video_data = io.BytesIO()
-            ffmpeg_command = [
-                "ffmpeg",
-                "-i", "pipe:0",  # Входной поток
-                "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",  # Пропорции Telegram
-                "-c:v", "libx264",  # Кодек
-                "-preset", "fast",  # Быстрая обработка
-                "-crf", "23",  # Качество
-                "-c:a", "aac",  # Аудиокодек
-                "-b:a", "128k",  # Битрейт аудио
-                "-f", "mp4",  # Формат выхода
-                "pipe:1"  # Выходной поток
-            ]
-            process = subprocess.Popen(ffmpeg_command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            processed_video_output, error = process.communicate(input=video_data.read())
-
-            if process.returncode != 0:
-                print(f"FFmpeg error: {error.decode()}")
-                return False
-
-            processed_video_data.write(processed_video_output)
-            processed_video_data.seek(0)
+            # Обрабатываем видео с помощью moviepy
+            clip = VideoFileClip(video_data)
+            processed_video = io.BytesIO()
+            clip.write_videofile(
+                processed_video,
+                codec="libx264",
+                audio_codec="aac",
+                verbose=False,
+                progress_bar=False
+            )
+            processed_video.seek(0)
 
             # Отправляем обработанное видео
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
-            files = {"video": ("reels_video.mp4", processed_video_data, "video/mp4")}
+            files = {"video": ("reels_video.mp4", processed_video, "video/mp4")}
             data = {
                 "chat_id": chat_id,
                 "supports_streaming": False,
