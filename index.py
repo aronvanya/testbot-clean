@@ -21,6 +21,7 @@ def webhook():
         if text == "/start":
             send_message(chat_id, "Привет! Этот бот поможет вам скачать видео из Instagram Reels.")
             send_message(chat_id, "Просто отправьте ссылку на Reels, и я сделаю всё за вас.")
+            send_message(chat_id, "Бот также работает в группах. Просто добавьте его в группу и отправьте ссылку на Reels.")
             return jsonify({"message": "Start command processed"}), 200
 
         # Обработка ссылки на Reels
