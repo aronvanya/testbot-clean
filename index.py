@@ -8,22 +8,6 @@ app = Flask(__name__)
 WEBHOOK_URL = "https://testbot-clean.vercel.app/webhook"
 TELEGRAM_TOKEN = "7648873218:AAGs6RZlBrVjr1TkmMjO-jvoFT8PxXvSjyM"
 
-# Сообщения на разных языках
-messages = {
-    "ru": {
-        "start": "Привет! Этот бот поможет вам скачать видео из Instagram Reels. Просто отправьте ссылку на Reels.",
-        "instruction": "Инструкция: отправьте ссылку на Reels, и вы получите видео в ответ. По умолчанию используется русский язык."
-    },
-    "en": {
-        "start": "Hello! This bot will help you download videos from Instagram Reels. Just send a link.",
-        "instruction": "Instruction: Send a Reels link, and you'll get the video in return. The default language is Russian."
-    },
-    "vi": {
-        "start": "Xin chào! Bot này sẽ giúp bạn tải video từ Instagram Reels. Chỉ cần gửi liên kết.",
-        "instruction": "Hướng dẫn: Gửi liên kết Reels và bạn sẽ nhận được video. Ngôn ngữ mặc định là tiếng Nga."
-    }
-}
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.get_json()
@@ -32,19 +16,12 @@ def webhook():
         chat_id = message["chat"]["id"]
         text = message.get("text", "").strip().lower()
 
-        # Команда /start: отправка приветственного сообщения на русском
+        # Команда /start
         if text == "/start":
-            send_message(chat_id, messages["ru"]["start"])
-            send_message(chat_id, messages["ru"]["instruction"])
-            send_language_menu(chat_id)
+            send_message(chat_id, "Привет! Этот бот поможет вам скачать видео из Instagram Reels.")
+            send_message(chat_id, "Просто отправьте ссылку на Reels, и я сделаю всё за вас.")
+            send_message(chat_id, "Пример ссылки: https://www.instagram.com/reel/...")
             return jsonify({"message": "Start command processed"}), 200
-
-        # Выбор языка
-        if text in ["русский", "english", "vietnamese"]:
-            lang = "ru" if text == "русский" else "en" if text == "english" else "vi"
-            send_message(chat_id, messages[lang]["start"])
-            send_message(chat_id, messages[lang]["instruction"])
-            return jsonify({"message": "Language selected"}), 200
 
         # Обработка ссылки на Reels
         if 'instagram.com/reel/' in text:
@@ -64,23 +41,6 @@ def index():
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
-    requests.post(url, json=payload)
-
-def send_language_menu(chat_id):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": "Выберите язык / Choose a language / Chọn ngôn ngữ:",
-        "reply_markup": {
-            "keyboard": [
-                [{"text": "Русский"}],
-                [{"text": "English"}],
-                [{"text": "Vietnamese"}]
-            ],
-            "one_time_keyboard": True,
-            "resize_keyboard": True
-        }
-    }
     requests.post(url, json=payload)
 
 def send_reels_video(chat_id, reels_url):
