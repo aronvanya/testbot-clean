@@ -2,33 +2,18 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
-from collections import defaultdict
 
 app = Flask(__name__)
 
 WEBHOOK_URL = "https://testbot-clean.vercel.app/webhook"
 TELEGRAM_TOKEN = "7648873218:AAGs6RZlBrVjr1TkmMjO-jvoFT8PxXvSjyM"
 
-# Хранилище языковых настроек
-user_languages = defaultdict(lambda: "ru")
-
-# Сообщения на разных языках
-messages = {
-    "start": {
-        "ru": "Привет! Выберите язык: Русский, English, Vietnamese.",
-        "en": "Hello! Please choose a language: Russian, English, Vietnamese.",
-        "vi": "Xin chào! Vui lòng chọn ngôn ngữ: Tiếng Nga, Tiếng Anh, Tiếng Việt."
-    },
-    "processing": {
-        "ru": "Обрабатываю ссылку, подождите...",
-        "en": "Processing your link, please wait...",
-        "vi": "Đang xử lý liên kết của bạn, vui lòng đợi..."
-    },
-    "error": {
-        "ru": "Не удалось скачать видео. Проверьте ссылку.",
-        "en": "Failed to download the video. Please check the link.",
-        "vi": "Không tải được video. Vui lòng kiểm tra liên kết."
-    }
+# Сообщения на русском языке (по умолчанию)
+default_messages = {
+    "start": "Привет! Этот бот поможет вам скачать видео из Instagram Reels. Просто отправьте ссылку на Reels.",
+    "processing": "Обрабатываю ссылку, подождите...",
+    "error": "Не удалось скачать видео. Проверьте ссылку.",
+    "invalid": "Отправьте корректную ссылку на Reels."
 }
 
 @app.route('/webhook', methods=['POST'])
@@ -41,25 +26,17 @@ def webhook():
 
         # Команда /start
         if text == "/start":
-            send_message(chat_id, messages["start"]["ru"])
+            send_message(chat_id, default_messages["start"])
             return jsonify({"message": "Start message sent"}), 200
-
-        # Выбор языка
-        if text in ["русский", "english", "vietnamese"]:
-            lang = "ru" if text == "русский" else "en" if text == "english" else "vi"
-            user_languages[chat_id] = lang
-            send_message(chat_id, f"Вы выбрали язык: {lang}.")
-            return jsonify({"message": "Language set"}), 200
 
         # Обработка ссылки на Reels
         if 'instagram.com/reel/' in text:
-            lang = user_languages[chat_id]
-            send_message(chat_id, messages["processing"][lang])
+            send_message(chat_id, default_messages["processing"])
             success = send_reels_video(chat_id, text.strip())
             if not success:
-                send_message(chat_id, messages["error"][lang])
+                send_message(chat_id, default_messages["error"])
         else:
-            send_message(chat_id, "Отправьте корректную ссылку на Reels.")
+            send_message(chat_id, default_messages["invalid"])
 
     return jsonify({"message": "Webhook received!"}), 200
 
@@ -70,7 +47,9 @@ def index():
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
-    requests.post(url, json=payload)
+    response = requests.post(url, json=payload)
+    print(f"Message sent to {chat_id}: {text}")
+    return response
 
 def send_reels_video(chat_id, reels_url):
     try:
@@ -82,14 +61,20 @@ def send_reels_video(chat_id, reels_url):
         if video_url:
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
-            video_content = response.content
 
+            video_content = response.content
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
             files = {"video": ("reels_video.mp4", video_content)}
             data = {"chat_id": chat_id, "supports_streaming": True}
-            requests.post(url, data=data, files=files)
+            response = requests.post(url, data=data, files=files)
+
+            if response.status_code != 200:
+                print(f"Error from Telegram API: {response.json()}")
+                return False
+
             return True
         else:
+            print("Видео не найдено в посте.")
             return False
     except Exception as e:
         print(f"Error sending video: {e}")
