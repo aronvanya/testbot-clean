@@ -24,16 +24,6 @@ messages = {
         "en": "Language set to: English.",
         "vi": "Ngôn ngữ đã được chọn: Tiếng Việt."
     },
-    "welcome": {
-        "ru": "Добро пожаловать! Этот бот поможет вам скачать видео из Instagram Reels. Просто отправьте ссылку, и я всё сделаю за вас!",
-        "en": "Welcome! This bot will help you download videos from Instagram Reels. Just send a link, and I'll handle the rest!",
-        "vi": "Chào mừng! Bot này sẽ giúp bạn tải video từ Instagram Reels. Chỉ cần gửi liên kết, tôi sẽ lo phần còn lại!"
-    },
-    "instruction": {
-        "ru": "Инструкция: отправьте ссылку на Reels, и вы получите видео в ответ. Бот также работает в группах: добавьте его в группу, и отправьте ссылку на Reels.",
-        "en": "Instruction: Send a Reels link, and you'll receive the video in return. The bot also works in groups: add it to a group and send a Reels link.",
-        "vi": "Hướng dẫn: Gửi liên kết Reels, và bạn sẽ nhận được video. Bot cũng hoạt động trong các nhóm: thêm nó vào nhóm và gửi liên kết Reels."
-    },
     "processing": {
         "ru": "Обрабатываю ссылку, подождите...",
         "en": "Processing your link, please wait...",
@@ -49,10 +39,13 @@ messages = {
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.get_json()
+    print(f"Received data: {data}")  # Лог входящего запроса
+
     if data and "message" in data:
         message = data["message"]
         chat_id = message["chat"]["id"]
         text = message.get("text", "").strip().lower()
+        print(f"Chat ID: {chat_id}, Text: {text}")  # Лог ID чата и текста сообщения
 
         # Команда /start
         if text == "/start":
@@ -61,17 +54,11 @@ def webhook():
 
         # Выбор языка
         if text in ["русский", "english", "vietnamese"]:
-            if text == "русский":
-                user_languages[chat_id] = "ru"
-            elif text == "english":
-                user_languages[chat_id] = "en"
-            elif text == "vietnamese":
-                user_languages[chat_id] = "vi"
+            lang = "ru" if text == "русский" else "en" if text == "english" else "vi"
+            user_languages[chat_id] = lang
+            print(f"Language set for {chat_id}: {lang}")  # Лог выбора языка
 
-            lang = user_languages[chat_id]
             send_message(chat_id, messages["language_set"][lang])
-            send_message(chat_id, messages["welcome"][lang])
-            send_message(chat_id, messages["instruction"][lang])
             return jsonify({"message": "Language set"}), 200
 
         # Обработка ссылки на Reels
@@ -82,8 +69,7 @@ def webhook():
             if not success:
                 send_message(chat_id, messages["error"][lang])
         else:
-            lang = user_languages[chat_id]
-            send_message(chat_id, messages["instruction"][lang])
+            send_message(chat_id, "⚠️ Отправьте ссылку на Reels.")
 
     return jsonify({"message": "Webhook received!"}), 200
 
@@ -94,7 +80,9 @@ def index():
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
-    requests.post(url, json=payload)
+    response = requests.post(url, json=payload)
+    print(f"Sent message to {chat_id}: {text}")  # Лог отправленного сообщения
+    return response
 
 def send_language_selection(chat_id):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -111,29 +99,29 @@ def send_language_selection(chat_id):
             "resize_keyboard": True
         }
     }
-    requests.post(url, json=payload)
+    response = requests.post(url, json=payload)
+    print(f"Sent language selection to {chat_id}")  # Лог отправки выбора языка
+    return response
 
 def send_reels_video(chat_id, reels_url):
     try:
         loader = instaloader.Instaloader()
-
-        # Парсим короткий код из ссылки
         shortcode = reels_url.split("/")[-2]
-        post = instaloader.Post.from_shortcode(loader.context, shortcode)
+        print(f"Parsed shortcode: {shortcode}")  # Лог shortocode
 
+        post = instaloader.Post.from_shortcode(loader.context, shortcode)
         video_url = post.video_url
+        print(f"Video URL: {video_url}")  # Лог URL видео
+
         if video_url:
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
 
             video_content = response.content
-
-            # Отправляем видео
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
             files = {"video": ("reels_video.mp4", video_content)}
             data = {"chat_id": chat_id, "supports_streaming": True}
             requests.post(url, data=data, files=files)
-
             return True
         else:
             print("Видео не найдено в посте.")
