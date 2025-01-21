@@ -73,11 +73,12 @@ def send_reels_video(chat_id, reels_url):
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
 
-            # Отправляем видео как документ для сохранения оригинального формата
-            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
-            files = {"document": ("reels_video.mp4", response.content)}
+            # Отправляем видео как файл видео с сохранением оригинального качества
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
+            files = {"video": ("reels_video.mp4", response.content)}
             data = {
                 "chat_id": chat_id,
+                "supports_streaming": False,  # Сохраняем качество
                 "caption": "Ваше видео из Instagram Reels 🎥",  # Дополнительный текст
             }
             requests.post(url, data=data, files=files)
