@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
+import cv2
+import numpy as np
 import io
 
 app = Flask(__name__)
@@ -61,6 +63,43 @@ def delete_message(chat_id, message_id):
     payload = {"chat_id": chat_id, "message_id": message_id}
     requests.post(url, json=payload)
 
+# Обработка видео в памяти для соответствия требованиям Telegram
+def process_video_in_memory(video_bytes):
+    # Чтение видео из байтового потока
+    video_array = np.frombuffer(video_bytes, np.uint8)
+    input_stream = cv2.VideoCapture(cv2.imdecode(video_array, cv2.IMREAD_COLOR))
+
+    # Проверяем открытие
+    if not input_stream.isOpened():
+        raise Exception("Не удалось открыть видео для обработки.")
+
+    # Параметры нового видео
+    frame_width = 1280
+    frame_height = 720
+    fps = int(input_stream.get(cv2.CAP_PROP_FPS))
+
+    # Инициализируем выходной поток в память
+    output_video = io.BytesIO()
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    output_stream = cv2.VideoWriter(
+        "appsrc ! videoconvert ! x264enc tune=zerolatency bitrate=500 speed-preset=ultrafast ! mp4mux ! filesink location=/dev/stdout",
+        fourcc, fps, (frame_width, frame_height)
+    )
+
+    while True:
+        ret, frame = input_stream.read()
+        if not ret:
+            break
+
+        # Изменяем размер кадра
+        resized_frame = cv2.resize(frame, (frame_width, frame_height))
+        output_stream.write(resized_frame)
+
+    input_stream.release()
+    output_stream.release()
+
+    return output_video.getvalue()
+
 # Функция для загрузки и отправки видео из Reels
 def send_reels_video(chat_id, reels_url):
     try:
@@ -74,9 +113,12 @@ def send_reels_video(chat_id, reels_url):
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
 
-            # Отправляем видео напрямую
+            # Обрабатываем видео перед отправкой
+            processed_video = process_video_in_memory(response.content)
+
+            # Отправляем видео
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
-            files = {"video": ("reels_video.mp4", response.content)}
+            files = {"video": ("reels_video.mp4", processed_video, "video/mp4")}
             data = {
                 "chat_id": chat_id,
                 "supports_streaming": False,
