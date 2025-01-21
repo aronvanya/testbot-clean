@@ -14,13 +14,12 @@ def webhook():
     if data and "message" in data:
         message = data["message"]
         chat_id = message["chat"]["id"]
-        text = message.get("text", "").strip().lower()
+        text = message.get("text", "")
 
-        # Команда /start
+        # Приветствие и инструкция при команде /start
         if text == "/start":
             send_message(chat_id, "Привет! Этот бот поможет вам скачать видео из Instagram Reels.")
             send_message(chat_id, "Просто отправьте ссылку на Reels, и я сделаю всё за вас.")
-            send_message(chat_id, "Пример ссылки: https://www.instagram.com/reel/...")
             return jsonify({"message": "Start command processed"}), 200
 
         # Обработка ссылки на Reels
