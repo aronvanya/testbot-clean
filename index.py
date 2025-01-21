@@ -17,9 +17,9 @@ user_languages = defaultdict(lambda: "ru")  # По умолчанию русск
 # Сообщения на разных языках
 messages = {
     "start": {
-        "ru": "Привет! Выберите язык: Русский, Английский или Вьетнамский.",
-        "en": "Hello! Please choose a language: Russian, English, or Vietnamese.",
-        "vi": "Xin chào! Vui lòng chọn ngôn ngữ: Tiếng Nga, Tiếng Anh hoặc Tiếng Việt."
+        "ru": "Привет! Выберите язык:",
+        "en": "Hello! Please choose a language:",
+        "vi": "Xin chào! Vui lòng chọn ngôn ngữ:"
     },
     "language_set": {
         "ru": "Язык успешно установлен: Русский.",
@@ -54,7 +54,7 @@ def webhook():
 
         # Команда /start
         if text == "/start":
-            send_message(chat_id, messages["start"]["ru"])
+            send_language_selection(chat_id)
             return jsonify({"message": "Start command processed"}), 200
 
         # Выбор языка
@@ -108,6 +108,24 @@ def send_message(chat_id, text):
     payload = {"chat_id": chat_id, "text": text}
     response = requests.post(url, json=payload)
     return response.json().get("result", {}).get("message_id")
+
+# Функция для отправки выбора языка
+def send_language_selection(chat_id):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": messages["start"]["ru"],
+        "reply_markup": {
+            "keyboard": [
+                [{"text": "Русский"}],
+                [{"text": "English"}],
+                [{"text": "Vietnamese"}]
+            ],
+            "one_time_keyboard": True,
+            "resize_keyboard": True
+        }
+    }
+    requests.post(url, json=payload)
 
 # Функция для удаления сообщения
 def delete_message(chat_id, message_id):
