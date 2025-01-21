@@ -16,9 +16,24 @@ messages = {
         "vi": "Xin chào! Bot này sẽ giúp bạn tải video từ Instagram Reels. Chỉ cần gửi liên kết."
     },
     "instruction": {
-        "ru": "Инструкция: отправьте ссылку на Reels, и вы получите видео в ответ. Вы можете выбрать язык с помощью кнопок ниже.",
-        "en": "Instruction: Send a Reels link, and you'll get the video in return. You can change the language using the buttons below.",
-        "vi": "Hướng dẫn: Gửi liên kết Reels và bạn sẽ nhận được video. Bạn có thể thay đổi ngôn ngữ bằng cách sử dụng các nút bên dưới."
+        "ru": "Инструкция: отправьте ссылку на Reels, и вы получите видео в ответ. Для смены языка используйте команды /ru, /en, /vi.",
+        "en": "Instruction: Send a Reels link, and you'll get the video in return. Use commands /ru, /en, /vi to change the language.",
+        "vi": "Hướng dẫn: Gửi liên kết Reels và bạn sẽ nhận được video. Sử dụng các lệnh /ru, /en, /vi để thay đổi ngôn ngữ."
+    },
+    "processing": {
+        "ru": "Обрабатываю ссылку, подождите...",
+        "en": "Processing your link, please wait...",
+        "vi": "Đang xử lý liên kết của bạn, vui lòng đợi..."
+    },
+    "error": {
+        "ru": "Не удалось скачать видео. Проверьте ссылку.",
+        "en": "Failed to download the video. Please check the link.",
+        "vi": "Không tải được video. Vui lòng kiểm tra liên kết."
+    },
+    "invalid": {
+        "ru": "Отправьте корректную ссылку на Reels.",
+        "en": "Please send a valid Reels link.",
+        "vi": "Vui lòng gửi liên kết Reels hợp lệ."
     }
 }
 
@@ -30,26 +45,27 @@ def webhook():
         chat_id = message["chat"]["id"]
         text = message.get("text", "").strip().lower()
 
-        # Команда /start: Приветствие с кнопками выбора языка
+        # Команда /start
         if text == "/start":
-            send_language_menu(chat_id)
+            send_message(chat_id, messages["start"]["ru"])
+            send_message(chat_id, messages["instruction"]["ru"])
             return jsonify({"message": "Start command processed"}), 200
 
-        # Обработка выбора языка
-        if text in ["русский", "english", "vietnamese"]:
-            lang = "ru" if text == "русский" else "en" if text == "english" else "vi"
+        # Выбор языка через команды
+        if text in ["/ru", "/en", "/vi"]:
+            lang = "ru" if text == "/ru" else "en" if text == "/en" else "vi"
             send_message(chat_id, messages["start"][lang])
             send_message(chat_id, messages["instruction"][lang])
             return jsonify({"message": "Language selected"}), 200
 
         # Обработка ссылки на Reels
         if 'instagram.com/reel/' in text:
-            send_message(chat_id, "Обрабатываю ссылку, подождите...")
+            send_message(chat_id, messages["processing"]["ru"])  # По умолчанию русский
             success = send_reels_video(chat_id, text.strip())
             if not success:
-                send_message(chat_id, "Не удалось скачать видео. Проверьте ссылку.")
+                send_message(chat_id, messages["error"]["ru"])
         else:
-            send_message(chat_id, "Отправьте мне ссылку на Reels, и я помогу скачать видео.")
+            send_message(chat_id, messages["invalid"]["ru"])
 
     return jsonify({"message": "Webhook received!"}), 200
 
@@ -60,23 +76,6 @@ def index():
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
-    requests.post(url, json=payload)
-
-def send_language_menu(chat_id):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": "Выберите язык / Choose a language / Chọn ngôn ngữ:",
-        "reply_markup": {
-            "keyboard": [
-                [{"text": "Русский"}],
-                [{"text": "English"}],
-                [{"text": "Vietnamese"}]
-            ],
-            "one_time_keyboard": True,
-            "resize_keyboard": True
-        }
-    }
     requests.post(url, json=payload)
 
 def send_reels_video(chat_id, reels_url):
