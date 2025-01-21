@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
+from moviepy.editor import VideoFileClip
+import io
 
 app = Flask(__name__)
 
@@ -73,15 +75,28 @@ def send_reels_video(chat_id, reels_url):
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
 
-            # Отправляем видео как файл видео с сохранением оригинального качества
+            # Сохраняем видео в оперативной памяти
+            video_data = io.BytesIO(response.content)
+            video_data.seek(0)
+
+            # Обрабатываем видео с сохранением пропорций
+            clip = VideoFileClip(video_data)
+            processed_video_path = "processed_video.mp4"
+            clip.write_videofile(processed_video_path, codec="libx264", audio_codec="aac")
+
+            # Отправляем обработанное видео
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
-            files = {"video": ("reels_video.mp4", response.content)}
-            data = {
-                "chat_id": chat_id,
-                "supports_streaming": False,  # Сохраняем качество
-                "caption": "Ваше видео из Instagram Reels 🎥",  # Дополнительный текст
-            }
-            requests.post(url, data=data, files=files)
+            with open(processed_video_path, "rb") as video_file:
+                files = {"video": video_file}
+                data = {
+                    "chat_id": chat_id,
+                    "supports_streaming": False,  # Сохраняем качество
+                    "caption": "Ваше видео из Instagram Reels 🎥",
+                }
+                requests.post(url, data=data, files=files)
+
+            # Удаляем временный файл
+            os.remove(processed_video_path)
             return True
         else:
             print("Видео не найдено в посте.")
