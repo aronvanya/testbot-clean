@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 import os
 import requests
-from bs4 import BeautifulSoup
+import instaloader
 
 app = Flask(__name__)
 
@@ -62,45 +62,27 @@ def send_video(chat_id, video_path):
 # Функция для загрузки видео из Reels
 def download_reels_video(reels_url):
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9",
-        }
-        response = requests.get(reels_url, headers=headers)
-        response.raise_for_status()
+        loader = instaloader.Instaloader()
+        # Парсим короткий код из ссылки
+        shortcode = reels_url.split("/")[-2]
+        post = instaloader.Post.from_shortcode(loader.context, shortcode)
 
-        # Извлекаем ссылку на видео из HTML
-        video_url = extract_video_url(response.text)
-
+        video_url = post.video_url
         if video_url:
-            video_response = requests.get(video_url, stream=True)
-            video_response.raise_for_status()
-            
+            response = requests.get(video_url, stream=True)
+            response.raise_for_status()
+
             file_name = "reels_video.mp4"
             with open(file_name, "wb") as video_file:
-                for chunk in video_response.iter_content(chunk_size=1024):
+                for chunk in response.iter_content(chunk_size=1024):
                     video_file.write(chunk)
 
             return file_name
         else:
-            print("Видео ссылка не найдена")
+            print("Видео не найдено в посте.")
             return None
     except Exception as e:
         print(f"Error downloading video: {e}")
-        return None
-
-# Реализация функции для извлечения видео URL
-def extract_video_url(page_content):
-    try:
-        soup = BeautifulSoup(page_content, 'html.parser')
-        video_tag = soup.find('meta', property='og:video')
-        if video_tag and video_tag.get('content'):
-            return video_tag['content']
-        else:
-            print("Видео ссылка не найдена")
-            return None
-    except Exception as e:
-        print(f"Ошибка при извлечении видео ссылки: {e}")
         return None
 
 if __name__ == '__main__':
