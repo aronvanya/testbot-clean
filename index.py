@@ -2,8 +2,6 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
-from moviepy.editor import VideoFileClip, concatenate_videoclips
-from moviepy.video.fx.resize import resize
 import io
 
 app = Flask(__name__)
@@ -76,40 +74,9 @@ def send_reels_video(chat_id, reels_url):
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
 
-            # Загружаем видео в память
-            video_data = io.BytesIO(response.content)
-            video_data.seek(0)
-
-            # Обрабатываем видео с помощью moviepy
-            clip = VideoFileClip(video_data)
-            # Изменяем размер для соответствия пропорциям Telegram (16:9)
-            target_width = 1280
-            target_height = 720
-            clip = resize(clip, height=target_height) if clip.size[1] > target_height else clip
-
-            # Если пропорции не подходят, добавляем черные полосы
-            if clip.size[0] != target_width or clip.size[1] != target_height:
-                clip = clip.margin(
-                    left=(target_width - clip.size[0]) // 2,
-                    right=(target_width - clip.size[0]) // 2,
-                    top=(target_height - clip.size[1]) // 2,
-                    bottom=(target_height - clip.size[1]) // 2,
-                    color=(0, 0, 0)
-                )
-
-            processed_video = io.BytesIO()
-            clip.write_videofile(
-                processed_video,
-                codec="libx264",
-                audio_codec="aac",
-                verbose=False,
-                progress_bar=False
-            )
-            processed_video.seek(0)
-
-            # Отправляем обработанное видео
+            # Отправляем видео напрямую
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
-            files = {"video": ("reels_video.mp4", processed_video, "video/mp4")}
+            files = {"video": ("reels_video.mp4", response.content)}
             data = {
                 "chat_id": chat_id,
                 "supports_streaming": False,
