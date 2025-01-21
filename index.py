@@ -19,12 +19,9 @@ def webhook():
 
         if 'instagram.com/reel/' in text:
             send_message(chat_id, "Обрабатываю ссылку, подождите...")
-            video_file = download_reels_video(text.strip())
+            success = send_reels_video(chat_id, text.strip())
 
-            if video_file:
-                send_video(chat_id, video_file)
-                os.remove(video_file)
-            else:
+            if not success:
                 send_message(chat_id, "Не удалось скачать видео. Пожалуйста, проверьте ссылку.")
         else:
             send_message(chat_id, "Отправьте мне ссылку на Reels, и я помогу скачать видео.")
@@ -51,16 +48,8 @@ def send_message(chat_id, text):
     payload = {"chat_id": chat_id, "text": text}
     requests.post(url, json=payload)
 
-# Функция для отправки видео
-def send_video(chat_id, video_path):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
-    with open(video_path, 'rb') as video:
-        files = {"video": video}
-        data = {"chat_id": chat_id}
-        requests.post(url, data=data, files=files)
-
-# Функция для загрузки видео из Reels
-def download_reels_video(reels_url):
+# Функция для загрузки и отправки видео из Reels
+def send_reels_video(chat_id, reels_url):
     try:
         loader = instaloader.Instaloader()
         # Парсим короткий код из ссылки
@@ -72,18 +61,17 @@ def download_reels_video(reels_url):
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
 
-            file_name = "reels_video.mp4"
-            with open(file_name, "wb") as video_file:
-                for chunk in response.iter_content(chunk_size=1024):
-                    video_file.write(chunk)
-
-            return file_name
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
+            files = {"video": ("reels_video.mp4", response.raw)}
+            data = {"chat_id": chat_id}
+            requests.post(url, data=data, files=files)
+            return True
         else:
             print("Видео не найдено в посте.")
-            return None
+            return False
     except Exception as e:
-        print(f"Error downloading video: {e}")
-        return None
+        print(f"Error sending video: {e}")
+        return False
 
 if __name__ == '__main__':
     app.run(debug=True)
