@@ -79,31 +79,31 @@ def send_reels_video(chat_id, reels_url):
 
             # Проверка параметров видео
             video_size_mb = len(video_content) / (1024 * 1024)
-            if video_size_mb > 50 or video_size_mb < 10:
-                send_message(chat_id, "⚠️ Telegram может изменить качество видео. Отправляю его как документ.")
-                # Отправляем как документ
+
+            # Сначала отправляем как видео
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
+            files = {"video": ("reels_video.mp4", video_content)}
+            data = {
+                "chat_id": chat_id,
+                "supports_streaming": True,  # Включена поддержка потокового воспроизведения
+                "caption": "Ваше видео из Instagram Reels 🎥",
+                "parse_mode": "HTML"  # Опционально для форматирования текста
+            }
+            video_response = requests.post(url, data=data, files=files)
+
+            # Если Telegram сжал видео или вернул ошибку, отправляем как документ
+            if video_response.status_code != 200 or 'compressed' in video_response.text.lower():
+                send_message(chat_id, "⚠️ Telegram сжал видео. Отправляю его как документ для сохранения качества.")
                 url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
                 files = {"document": ("reels_video.mp4", video_content)}
                 data = {
                     "chat_id": chat_id,
                     "caption": "Ваше видео из Instagram Reels 🎥 (исходное качество сохранено)",
                 }
-                response = requests.post(url, data=data, files=files)
-            else:
-                # Отправляем как видео
-                url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
-                files = {"video": ("reels_video.mp4", video_content)}
-                data = {
-                    "chat_id": chat_id,
-                    "supports_streaming": True,  # Включена поддержка потокового воспроизведения
-                    "caption": "Ваше видео из Instagram Reels 🎥",
-                    "parse_mode": "HTML"  # Опционально для форматирования текста
-                }
-                response = requests.post(url, data=data, files=files)
-
-            if response.status_code != 200:
-                print(f"Telegram API error: {response.json()}")
-                return False
+                document_response = requests.post(url, data=data, files=files)
+                if document_response.status_code != 200:
+                    print(f"Telegram API error when sending document: {document_response.json()}")
+                    return False
 
             return True
         else:
