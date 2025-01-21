@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
-from instaloader import Instaloader, Post
 import os
 import requests
+import yt_dlp
 
 app = Flask(__name__)
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -11,7 +11,6 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 def webhook():
     data = request.get_json()
 
-    # Проверка, что запрос содержит сообщение с текстом
     if not data or "message" not in data:
         return jsonify({"error": "Invalid request"}), 400
 
@@ -19,35 +18,38 @@ def webhook():
     chat_id = message["chat"]["id"]
     text = message.get("text", "")
 
-    # Проверяем, содержит ли текст ссылку на Reels
     if "instagram.com/reel/" not in text:
         send_message(chat_id, "❌ This is not a valid Instagram Reel link.")
         return jsonify({"message": "Not a Reel URL"}), 200
 
     try:
-        # Инициализация Instaloader
-        loader = Instaloader(save_metadata=False, download_video_thumbnails=False)
-        shortcode = text.split("/")[-2]
-
-        # Получаем метаданные поста
-        post = Post.from_shortcode(loader.context, shortcode)
-        video_url = post.video_url
-
+        video_url = download_reel(text)
         if not video_url:
-            raise ValueError("No video found in the Reel.")
+            raise ValueError("Failed to extract video URL.")
 
-        # Отправляем видео в Telegram
         send_video(chat_id, video_url)
         return jsonify({"message": "Reel downloaded and sent successfully!"}), 200
 
     except Exception as e:
-        print(f"Ошибка загрузки: {e}")
+        print(f"Error: {e}")
         send_message(chat_id, "❌ Failed to download the Reel. Please try again later.")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/')
 def index():
     return "Server is running", 200
+
+def download_reel(instagram_url):
+    """Функция для скачивания видео из Instagram Reels"""
+    ydl_opts = {
+        'quiet': True,
+        'format': 'mp4',
+        'outtmpl': '/tmp/%(id)s.%(ext)s',
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(instagram_url, download=False)
+        return info.get('url', None)
 
 def send_message(chat_id, text):
     """Функция для отправки текстового сообщения в Telegram"""
