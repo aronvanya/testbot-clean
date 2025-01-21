@@ -84,8 +84,8 @@ def send_reels_video(chat_id, reels_url, user_name):
 
             # Проверка требований Telegram
             if not is_valid_for_telegram(video_content):
-                # Отправляем видео как документ
-                send_video_as_document(chat_id, video_content, user_name)
+                # Отправляем видео как документ с пояснением
+                send_video_as_document(chat_id, video_content, user_name, reason="Видео превышает ограничения Telegram (например, вес больше 20 MB).")
             else:
                 # Отправляем видео как потоковое
                 send_video_as_stream(chat_id, video_content, user_name)
@@ -116,12 +116,12 @@ def send_video_as_stream(chat_id, video_content, user_name):
     }
     requests.post(url, data=data, files=files)
 
-def send_video_as_document(chat_id, video_content, user_name):
+def send_video_as_document(chat_id, video_content, user_name, reason):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
     files = {"document": ("reels_video.mp4", video_content)}
     data = {
         "chat_id": chat_id,
-        "caption": f"📁 Видео от @{user_name} (отправлено как файл) 🚀"
+        "caption": f"📁 Видео от @{user_name} (отправлено как файл) 🚀\n\nПричина: {reason}"
     }
     requests.post(url, data=data, files=files)
 
