@@ -62,6 +62,7 @@ def delete_message(chat_id, message_id):
     requests.post(url, json=payload)
 
 # Функция для загрузки и отправки видео из Reels
+
 def send_reels_video(chat_id, reels_url):
     try:
         loader = instaloader.Instaloader()
@@ -74,9 +75,16 @@ def send_reels_video(chat_id, reels_url):
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
 
+            video_content = response.content
+
+            # Проверка параметров видео
+            video_size_mb = len(video_content) / (1024 * 1024)
+            if video_size_mb > 50:
+                print("Видео превышает лимит 50 МБ. Возможны проблемы с качеством.")
+
             # Отправляем видео напрямую с поддержкой потоков
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
-            files = {"video": ("reels_video.mp4", response.content)}
+            files = {"video": ("reels_video.mp4", video_content)}
             data = {
                 "chat_id": chat_id,
                 "supports_streaming": True,  # Включена поддержка потокового воспроизведения
