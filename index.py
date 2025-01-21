@@ -63,11 +63,13 @@ def send_video(chat_id, video_path):
 def download_reels_video(reels_url):
     try:
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
         }
         response = requests.get(reels_url, headers=headers)
         response.raise_for_status()
 
+        # Извлекаем ссылку на видео из HTML
         video_url = extract_video_url(response.text)
 
         if video_url:
@@ -81,6 +83,7 @@ def download_reels_video(reels_url):
 
             return file_name
         else:
+            print("Видео ссылка не найдена")
             return None
     except Exception as e:
         print(f"Error downloading video: {e}")
