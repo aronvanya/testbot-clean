@@ -2,3 +2,4 @@ flask==2.2.2
 werkzeug==2.2.3
 requests
 beautifulsoup4
+instaloader
