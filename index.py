@@ -16,20 +16,16 @@ def webhook():
         chat_id = message["chat"]["id"]
         text = message.get("text", "")
 
-        # Приветствие и инструкция при команде /start
-        if text == "/start":
-            send_message(chat_id, "Привет! Этот бот поможет вам скачать видео из Instagram Reels.")
-            send_message(chat_id, "Просто отправьте ссылку на Reels, и я сделаю всё за вас.")
-            return jsonify({"message": "Start command processed"}), 200
-
         # Обработка ссылки на Reels
         if 'instagram.com/reel/' in text:
             send_message(chat_id, "Обрабатываю ссылку, подождите...")
             success = send_reels_video(chat_id, text.strip())
             if not success:
                 send_message(chat_id, "Не удалось скачать видео. Проверьте ссылку.")
-        else:
-            send_message(chat_id, "Отправьте мне ссылку на Reels, и я помогу скачать видео.")
+            return jsonify({"message": "Reels link processed"}), 200
+
+        # Игнорируем другие сообщения
+        return jsonify({"message": "Message ignored"}), 200
 
     return jsonify({"message": "Webhook received!"}), 200
 
