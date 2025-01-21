@@ -16,9 +16,9 @@ def webhook():
         chat_id = message["chat"]["id"]
         text = message.get("text", "").strip().lower()
 
-        # Команда /start: отправка кнопок для выбора языка
+        # Команда /start
         if text == "/start":
-            send_language_menu(chat_id)
+            send_message(chat_id, "Привет! Этот бот поможет вам скачать видео из Instagram Reels. Просто отправьте ссылку.")
             return jsonify({"message": "Start command processed"}), 200
 
         # Обработка ссылки на Reels
@@ -39,23 +39,6 @@ def index():
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
-    requests.post(url, json=payload)
-
-def send_language_menu(chat_id):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": "Выберите язык:",
-        "reply_markup": {
-            "keyboard": [
-                [{"text": "Русский"}],
-                [{"text": "English"}],
-                [{"text": "Vietnamese"}]
-            ],
-            "one_time_keyboard": True,
-            "resize_keyboard": True
-        }
-    }
     requests.post(url, json=payload)
 
 def send_reels_video(chat_id, reels_url):
