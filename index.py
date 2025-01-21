@@ -10,30 +10,26 @@ TELEGRAM_TOKEN = "7648873218:AAGs6RZlBrVjr1TkmMjO-jvoFT8PxXvSjyM"
 
 # Сообщения на разных языках
 messages = {
-    "start": {
-        "ru": "Привет! Этот бот поможет вам скачать видео из Instagram Reels. Просто отправьте ссылку на Reels.",
-        "en": "Hello! This bot will help you download videos from Instagram Reels. Just send a link.",
-        "vi": "Xin chào! Bot này sẽ giúp bạn tải video từ Instagram Reels. Chỉ cần gửi liên kết."
+    "ru": {
+        "start": "Привет! Этот бот поможет вам скачать видео из Instagram Reels. Просто отправьте ссылку на Reels.",
+        "instruction": "Инструкция: отправьте ссылку на Reels, и вы получите видео в ответ. Чтобы сменить язык, используйте /start ru, /start en или /start vi.",
+        "processing": "Обрабатываю ссылку, подождите...",
+        "error": "Не удалось скачать видео. Проверьте ссылку.",
+        "invalid": "Отправьте корректную ссылку на Reels."
     },
-    "instruction": {
-        "ru": "Инструкция: отправьте ссылку на Reels, и вы получите видео в ответ. Для смены языка используйте команды /ru, /en, /vi.",
-        "en": "Instruction: Send a Reels link, and you'll get the video in return. Use commands /ru, /en, /vi to change the language.",
-        "vi": "Hướng dẫn: Gửi liên kết Reels và bạn sẽ nhận được video. Sử dụng các lệnh /ru, /en, /vi để thay đổi ngôn ngữ."
+    "en": {
+        "start": "Hello! This bot will help you download videos from Instagram Reels. Just send a link.",
+        "instruction": "Instruction: Send a Reels link, and you'll get the video in return. Use /start ru, /start en, or /start vi to change the language.",
+        "processing": "Processing your link, please wait...",
+        "error": "Failed to download the video. Please check the link.",
+        "invalid": "Please send a valid Reels link."
     },
-    "processing": {
-        "ru": "Обрабатываю ссылку, подождите...",
-        "en": "Processing your link, please wait...",
-        "vi": "Đang xử lý liên kết của bạn, vui lòng đợi..."
-    },
-    "error": {
-        "ru": "Не удалось скачать видео. Проверьте ссылку.",
-        "en": "Failed to download the video. Please check the link.",
-        "vi": "Không tải được video. Vui lòng kiểm tra liên kết."
-    },
-    "invalid": {
-        "ru": "Отправьте корректную ссылку на Reels.",
-        "en": "Please send a valid Reels link.",
-        "vi": "Vui lòng gửi liên kết Reels hợp lệ."
+    "vi": {
+        "start": "Xin chào! Bot này sẽ giúp bạn tải video từ Instagram Reels. Chỉ cần gửi liên kết.",
+        "instruction": "Hướng dẫn: Gửi liên kết Reels và bạn sẽ nhận được video. Sử dụng /start ru, /start en hoặc /start vi để thay đổi ngôn ngữ.",
+        "processing": "Đang xử lý liên kết của bạn, vui lòng đợi...",
+        "error": "Không tải được video. Vui lòng kiểm tra liên kết.",
+        "invalid": "Vui lòng gửi liên kết Reels hợp lệ."
     }
 }
 
@@ -45,27 +41,22 @@ def webhook():
         chat_id = message["chat"]["id"]
         text = message.get("text", "").strip().lower()
 
-        # Команда /start
-        if text == "/start":
-            send_message(chat_id, messages["start"]["ru"])
-            send_message(chat_id, messages["instruction"]["ru"])
+        # Обработка команды /start
+        if text.startswith("/start"):
+            lang = text.split(" ")[1] if " " in text else "ru"
+            lang = lang if lang in messages else "ru"  # Если язык не распознан, используем русский
+            send_message(chat_id, messages[lang]["start"])
+            send_message(chat_id, messages[lang]["instruction"])
             return jsonify({"message": "Start command processed"}), 200
-
-        # Выбор языка через команды
-        if text in ["/ru", "/en", "/vi"]:
-            lang = "ru" if text == "/ru" else "en" if text == "/en" else "vi"
-            send_message(chat_id, messages["start"][lang])
-            send_message(chat_id, messages["instruction"][lang])
-            return jsonify({"message": "Language selected"}), 200
 
         # Обработка ссылки на Reels
         if 'instagram.com/reel/' in text:
-            send_message(chat_id, messages["processing"]["ru"])  # По умолчанию русский
+            send_message(chat_id, messages["ru"]["processing"])  # По умолчанию русский
             success = send_reels_video(chat_id, text.strip())
             if not success:
-                send_message(chat_id, messages["error"]["ru"])
+                send_message(chat_id, messages["ru"]["error"])
         else:
-            send_message(chat_id, messages["invalid"]["ru"])
+            send_message(chat_id, messages["ru"]["invalid"])
 
     return jsonify({"message": "Webhook received!"}), 200
 
