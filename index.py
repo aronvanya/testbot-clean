@@ -2,8 +2,8 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
-from moviepy.editor import VideoFileClip
-import io
+import subprocess
+import tempfile
 
 app = Flask(__name__)
 
@@ -75,28 +75,41 @@ def send_reels_video(chat_id, reels_url):
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
 
-            # Сохраняем видео в оперативной памяти
-            video_data = io.BytesIO(response.content)
-            video_data.seek(0)
+            # Сохраняем оригинальное видео во временный файл
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_video:
+                temp_video.write(response.content)
+                temp_video_path = temp_video.name
 
-            # Обрабатываем видео с сохранением пропорций
-            clip = VideoFileClip(video_data)
-            processed_video_path = "processed_video.mp4"
-            clip.write_videofile(processed_video_path, codec="libx264", audio_codec="aac")
+            # Конвертируем видео для соответствия требованиям Telegram
+            processed_video_path = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False).name
+            ffmpeg_command = [
+                "ffmpeg",
+                "-i", temp_video_path,  # Исходное видео
+                "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",  # Пропорции Telegram
+                "-c:v", "libx264",  # Кодек
+                "-preset", "fast",  # Быстрая обработка
+                "-crf", "23",  # Качество
+                "-c:a", "aac",  # Аудиокодек
+                "-b:a", "128k",  # Битрейт аудио
+                processed_video_path
+            ]
+            subprocess.run(ffmpeg_command, check=True)
 
             # Отправляем обработанное видео
-            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
             with open(processed_video_path, "rb") as video_file:
+                url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
                 files = {"video": video_file}
                 data = {
                     "chat_id": chat_id,
-                    "supports_streaming": False,  # Сохраняем качество
+                    "supports_streaming": False,
                     "caption": "Ваше видео из Instagram Reels 🎥",
                 }
                 requests.post(url, data=data, files=files)
 
-            # Удаляем временный файл
+            # Удаляем временные файлы
+            os.remove(temp_video_path)
             os.remove(processed_video_path)
+
             return True
         else:
             print("Видео не найдено в посте.")
