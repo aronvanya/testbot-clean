@@ -17,6 +17,9 @@ def webhook():
         message_id = message["message_id"]
         text = message.get("text", "")
 
+        # Получаем имя пользователя
+        user_name = message["from"].get("username", "пользователь")
+
         # Обработка команды /start
         if text == "/start":
             send_message(chat_id, (
@@ -31,7 +34,8 @@ def webhook():
         # Обработка ссылки на Reels
         if 'instagram.com/reel/' in text:
             processing_message_id = send_message(chat_id, "⏳ Обрабатываю ссылку, подождите...")
-            success = send_reels_video(chat_id, text.strip())
+
+            success = send_reels_video(chat_id, text.strip(), user_name)
             if success:
                 # Удаляем сообщения после успешной отправки
                 delete_message(chat_id, processing_message_id)
@@ -63,7 +67,7 @@ def delete_message(chat_id, message_id):
     payload = {"chat_id": chat_id, "message_id": message_id}
     requests.post(url, json=payload)
 
-def send_reels_video(chat_id, reels_url):
+def send_reels_video(chat_id, reels_url, user_name):
     try:
         loader = instaloader.Instaloader()
 
@@ -78,10 +82,14 @@ def send_reels_video(chat_id, reels_url):
 
             video_content = response.content
 
-            # Отправляем видео
+            # Отправляем видео с описанием
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
             files = {"video": ("reels_video.mp4", video_content)}
-            data = {"chat_id": chat_id, "supports_streaming": True}
+            data = {
+                "chat_id": chat_id,
+                "caption": f"📹 Видео от @{user_name} 🚀",
+                "supports_streaming": True
+            }
             requests.post(url, data=data, files=files)
 
             return True
