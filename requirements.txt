@@ -1,4 +1,5 @@
 flask==2.2.2
 werkzeug==2.2.3
 requests
-yt-dlp
+yt-dlp==2025.01.20
+
