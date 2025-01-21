@@ -80,7 +80,7 @@ def send_reels_video(chat_id, reels_url):
             # Проверка параметров видео
             video_size_mb = len(video_content) / (1024 * 1024)
             if video_size_mb > 50:
-                print("Видео превышает лимит 50 МБ. Возможны проблемы с качеством.")
+                send_message(chat_id, "⚠️ Видео больше 50 МБ. Telegram может сжать его.")
 
             # Отправляем видео напрямую с поддержкой потоков
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
