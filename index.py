@@ -3,7 +3,7 @@ import os
 import requests
 import instaloader
 import subprocess
-import tempfile
+import io
 
 app = Flask(__name__)
 
@@ -75,40 +75,43 @@ def send_reels_video(chat_id, reels_url):
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
 
-            # Сохраняем оригинальное видео во временный файл
-            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_video:
-                temp_video.write(response.content)
-                temp_video_path = temp_video.name
+            # Сохраняем оригинальное видео в оперативную память
+            video_data = io.BytesIO(response.content)
+            video_data.seek(0)
 
-            # Конвертируем видео для соответствия требованиям Telegram
-            processed_video_path = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False).name
+            # Обрабатываем видео с помощью ffmpeg (оперативная память)
+            processed_video_data = io.BytesIO()
             ffmpeg_command = [
                 "ffmpeg",
-                "-i", temp_video_path,  # Исходное видео
+                "-i", "pipe:0",  # Входной поток
                 "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",  # Пропорции Telegram
                 "-c:v", "libx264",  # Кодек
                 "-preset", "fast",  # Быстрая обработка
                 "-crf", "23",  # Качество
                 "-c:a", "aac",  # Аудиокодек
                 "-b:a", "128k",  # Битрейт аудио
-                processed_video_path
+                "-f", "mp4",  # Формат выхода
+                "pipe:1"  # Выходной поток
             ]
-            subprocess.run(ffmpeg_command, check=True)
+            process = subprocess.Popen(ffmpeg_command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            processed_video_output, error = process.communicate(input=video_data.read())
+
+            if process.returncode != 0:
+                print(f"FFmpeg error: {error.decode()}")
+                return False
+
+            processed_video_data.write(processed_video_output)
+            processed_video_data.seek(0)
 
             # Отправляем обработанное видео
-            with open(processed_video_path, "rb") as video_file:
-                url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
-                files = {"video": video_file}
-                data = {
-                    "chat_id": chat_id,
-                    "supports_streaming": False,
-                    "caption": "Ваше видео из Instagram Reels 🎥",
-                }
-                requests.post(url, data=data, files=files)
-
-            # Удаляем временные файлы
-            os.remove(temp_video_path)
-            os.remove(processed_video_path)
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
+            files = {"video": ("reels_video.mp4", processed_video_data, "video/mp4")}
+            data = {
+                "chat_id": chat_id,
+                "supports_streaming": False,
+                "caption": "Ваше видео из Instagram Reels 🎥",
+            }
+            requests.post(url, data=data, files=files)
 
             return True
         else:
