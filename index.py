@@ -26,12 +26,13 @@ def webhook():
 
     try:
         # Инициализация Instaloader
-        loader = Instaloader()
+        loader = Instaloader(save_metadata=False, download_video_thumbnails=False)
         shortcode = text.split("/")[-2]
-        post = Post.from_shortcode(loader.context, shortcode)
 
-        # Загружаем Reel
+        # Получаем метаданные поста
+        post = Post.from_shortcode(loader.context, shortcode)
         video_url = post.video_url
+
         if not video_url:
             raise ValueError("No video found in the Reel.")
 
