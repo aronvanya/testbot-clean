@@ -27,7 +27,8 @@ def webhook():
                 "Этот бот поможет вам скачать видео из Instagram Reels. 📹\n\n"
                 "Просто отправьте ссылку на Reels, и я сделаю всё за вас. ✅\n\n"
                 "✨ *Бот также работает в группах!* ✨\n"
-                "Добавьте его в группу и отправьте ссылку на Reels, чтобы получить видео. 🚀"
+                "Добавьте его в группу и дайте ему права администратора для функционирования. 🚀\n\n"
+                "После добавления отправьте ссылку на Reels, и бот скачает видео для вас. 🎬"
             ), parse_mode="Markdown")
             return jsonify({"message": "Start command processed"}), 200
 
@@ -85,7 +86,7 @@ def send_reels_video(chat_id, reels_url, user_name):
             # Проверка требований Telegram
             if not is_valid_for_telegram(video_content):
                 # Отправляем видео как документ с пояснением
-                send_video_as_document(chat_id, video_content, user_name, reason="Видео превышает ограничения Telegram (например, вес больше 20 MB).")
+                send_video_as_document(chat_id, video_content, user_name, reason=None)
             else:
                 # Отправляем видео как потоковое
                 send_video_as_stream(chat_id, video_content, user_name)
@@ -121,7 +122,7 @@ def send_video_as_document(chat_id, video_content, user_name, reason):
     files = {"document": ("reels_video.mp4", video_content)}
     data = {
         "chat_id": chat_id,
-        "caption": f"📁 Видео от @{user_name} (отправлено как файл) 🚀\n\nПричина: {reason}"
+        "caption": f"📁 Видео от @{user_name} (отправлено как файл) 🚀"
     }
     requests.post(url, data=data, files=files)
 
