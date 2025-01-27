@@ -122,7 +122,7 @@ def send_video_as_document(chat_id, video_content, user_name, reason):
     files = {"document": ("reels_video.mp4", video_content)}
     data = {
         "chat_id": chat_id,
-        "caption": f"📁 Видео от @{user_name} (отправлено как файл) 🚀"
+        "caption": f"📁 Видео от @{user_name} (Превышен размер. Видео отправлено как файл) 🚀"
     }
     requests.post(url, data=data, files=files)
 
