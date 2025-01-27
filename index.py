@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
+import yt_dlp
 
 app = Flask(__name__)
 
@@ -24,11 +25,11 @@ def webhook():
         if text == "/start":
             send_message(chat_id, (
                 "👋 *Привет!*\n\n"
-                "Этот бот поможет вам скачать видео из Instagram Reels. 📹\n\n"
-                "Просто отправьте ссылку на Reels, и я сделаю всё за вас. ✅\n\n"
+                "Этот бот поможет вам скачать видео из Instagram Reels и YouTube Shorts. 📹\n\n"
+                "Просто отправьте ссылку на Reels или Shorts, и я сделаю всё за вас. ✅\n\n"
                 "✨ *Бот также работает в группах!* ✨\n"
                 "Добавьте его в группу и дайте ему права администратора для функционирования. 🚀\n\n"
-                "После добавления отправьте ссылку на Reels, и бот скачает видео для вас. 🎬"
+                "После добавления отправьте ссылку, и бот скачает видео для вас. 🎬"
             ), parse_mode="Markdown")
             return jsonify({"message": "Start command processed"}), 200
 
@@ -38,12 +39,23 @@ def webhook():
 
             success = send_reels_video(chat_id, text.strip(), user_name)
             if success:
-                # Удаляем сообщения после успешной отправки
                 delete_message(chat_id, processing_message_id)
                 delete_message(chat_id, message_id)
             else:
                 send_message(chat_id, "❌ Не удалось скачать видео. Проверьте ссылку.")
             return jsonify({"message": "Reels link processed"}), 200
+
+        # Обработка ссылки на Shorts
+        if 'youtube.com/shorts/' in text or 'youtu.be/' in text:
+            processing_message_id = send_message(chat_id, "⏳ Обрабатываю ссылку, подождите...")
+
+            success = send_shorts_video(chat_id, text.strip(), user_name)
+            if success:
+                delete_message(chat_id, processing_message_id)
+                delete_message(chat_id, message_id)
+            else:
+                send_message(chat_id, "❌ Не удалось скачать видео. Проверьте ссылку.")
+            return jsonify({"message": "Shorts link processed"}), 200
 
         # Игнорируем все остальные сообщения
         return jsonify({"message": "Message ignored"}), 200
@@ -60,7 +72,6 @@ def send_message(chat_id, text, parse_mode=None):
     if parse_mode:
         payload["parse_mode"] = parse_mode
     response = requests.post(url, json=payload)
-    # Возвращаем ID сообщения для последующего удаления
     return response.json().get("result", {}).get("message_id")
 
 def delete_message(chat_id, message_id):
@@ -71,58 +82,44 @@ def delete_message(chat_id, message_id):
 def send_reels_video(chat_id, reels_url, user_name):
     try:
         loader = instaloader.Instaloader()
-
-        # Парсим короткий код из ссылки
         shortcode = reels_url.split("/")[-2]
         post = instaloader.Post.from_shortcode(loader.context, shortcode)
-
         video_url = post.video_url
+
         if video_url:
-            response = requests.get(video_url, stream=True)
-            response.raise_for_status()
-
-            video_content = response.content
-
-            # Проверка требований Telegram
-            if not is_valid_for_telegram(video_content):
-                # Отправляем видео как документ с пояснением
-                send_video_as_document(chat_id, video_content, user_name, reason=None)
-            else:
-                # Отправляем видео как потоковое
-                send_video_as_stream(chat_id, video_content, user_name)
-
+            video_content = requests.get(video_url).content
+            send_video_as_stream(chat_id, video_content, user_name)
             return True
-        else:
-            print("Видео не найдено в посте.")
-            return False
     except Exception as e:
-        print(f"Error sending video: {e}")
-        return False
+        print(f"Error sending Reels video: {e}")
+    return False
 
-def is_valid_for_telegram(video_content):
-    video_size_mb = len(video_content) / (1024 * 1024)
-    # Проверка размера файла (до 20 MB)
-    if video_size_mb > 20:
-        return False
-    # Пропустим дополнительные проверки (длина, соотношение сторон) для упрощения
-    return True
+def send_shorts_video(chat_id, shorts_url, user_name):
+    try:
+        ydl_opts = {
+            'quiet': True,
+            'format': 'mp4',
+            'outtmpl': '/tmp/%(id)s.%(ext)s',
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(shorts_url, download=False)
+            video_url = info.get('url')
+
+        if video_url:
+            video_content = requests.get(video_url).content
+            send_video_as_stream(chat_id, video_content, user_name)
+            return True
+    except Exception as e:
+        print(f"Error sending Shorts video: {e}")
+    return False
 
 def send_video_as_stream(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
-    files = {"video": ("reels_video.mp4", video_content)}
+    files = {"video": ("video.mp4", video_content)}
     data = {
         "chat_id": chat_id,
         "caption": f"📹 Видео от @{user_name} 🚀",
         "supports_streaming": True
-    }
-    requests.post(url, data=data, files=files)
-
-def send_video_as_document(chat_id, video_content, user_name, reason):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
-    files = {"document": ("reels_video.mp4", video_content)}
-    data = {
-        "chat_id": chat_id,
-        "caption": f"📁 Видео от @{user_name} (отправлено как файл) 🚀"
     }
     requests.post(url, data=data, files=files)
 
