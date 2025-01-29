@@ -4,6 +4,7 @@ import requests
 import instaloader
 import io
 import subprocess
+import time
 
 app = Flask(__name__)
 
@@ -12,6 +13,8 @@ TELEGRAM_TOKEN = "7648873218:AAGs6RZlBrVjr1TkmMjO-jvoFT8PxXvSjyM"
 MAX_VIDEO_SIZE_MB = 50  # Максимальный размер для sendVideo (в МБ)
 MAX_DOC_SIZE_MB = 2000  # Максимальный размер для sendDocument (2 ГБ)
 TIMEOUT = 600  # Увеличенный таймаут для загрузки больших файлов
+
+active_downloads = set()  # Отслеживание активных загрузок
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -36,8 +39,15 @@ def webhook():
             return jsonify({"message": "Start command processed"}), 200
 
         if 'instagram.com/reel/' in text:
+            if text in active_downloads:
+                print(f"⚠️ Запрос на загрузку видео {text} уже выполняется.")
+                return jsonify({"message": "Duplicate request ignored"}), 200
+            
+            active_downloads.add(text)
             processing_message_id = send_message(chat_id, "⏳ Обрабатываю ссылку, подождите...")
             success = send_reels_video(chat_id, text.strip(), user_name)
+            active_downloads.remove(text)
+            
             if success:
                 delete_message(chat_id, processing_message_id)
                 delete_message(chat_id, message_id)
@@ -64,21 +74,6 @@ def delete_message(chat_id, message_id):
     payload = {"chat_id": chat_id, "message_id": message_id}
     requests.post(url, json=payload)
 
-def get_video_metadata(video_content):
-    with io.BytesIO(video_content) as temp_video:
-        temp_video.seek(0)
-        command = [
-            "ffprobe", "-v", "error", "-select_streams", "v:0",
-            "-show_entries", "stream=width,height,duration", "-of", "csv=p=0"
-        ]
-        try:
-            result = subprocess.run(command, input=temp_video.read(), capture_output=True, text=True, check=True)
-            width, height, duration = map(float, result.stdout.strip().split(","))
-            return int(width), int(height), int(duration)
-        except Exception as e:
-            print(f"Ошибка получения метаданных видео: {e}")
-            return 720, 1280, 10  # Значения по умолчанию (9:16 видео)
-
 def send_reels_video(chat_id, reels_url, user_name):
     try:
         loader = instaloader.Instaloader()
@@ -87,7 +82,7 @@ def send_reels_video(chat_id, reels_url, user_name):
         video_url = post.video_url
 
         if video_url:
-            response = requests.get(video_url, stream=True)
+            response = requests.get(video_url, stream=True, timeout=TIMEOUT)
             response.raise_for_status()
             video_content = response.content
 
@@ -101,8 +96,7 @@ def send_reels_video(chat_id, reels_url, user_name):
                 print("Видео слишком большое, отправляем как документ.")
                 send_video_as_document(chat_id, video_content, user_name)
             else:
-                width, height, duration = get_video_metadata(video_content)
-                send_video_as_stream(chat_id, video_content, user_name, width, height, duration)
+                send_video_as_stream(chat_id, video_content, user_name)
             return True
         else:
             print("Видео не найдено в посте.")
@@ -111,15 +105,12 @@ def send_reels_video(chat_id, reels_url, user_name):
         print(f"Ошибка при загрузке видео: {e}")
         return False
 
-def send_video_as_stream(chat_id, video_content, user_name, width, height, duration):
+def send_video_as_stream(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
     files = {"video": ("fixed_video.mp4", video_content, "video/mp4")}
     data = {
         "chat_id": chat_id,
         "caption": f"📹 Видео от @{user_name} 🚀",
-        "width": width,
-        "height": height,
-        "duration": duration,
         "supports_streaming": True
     }
     response = requests.post(url, data=data, files=files, timeout=TIMEOUT)
