@@ -66,11 +66,8 @@ def send_reels_video(chat_id, reels_url, user_name):
             response.raise_for_status()
             video_content = response.content
 
-            file_id = send_video_as_stream(chat_id, video_content, user_name)
-            if file_id and is_video_compressed(file_id, video_content):
-                delete_message(chat_id, file_id)
-                send_video_as_document(chat_id, video_content, user_name)
-
+            processed_video_content = fix_video_metadata(video_content)
+            send_video_as_stream(chat_id, processed_video_content, user_name)
             return True
         else:
             print("Видео не найдено в посте.")
@@ -79,56 +76,36 @@ def send_reels_video(chat_id, reels_url, user_name):
         print(f"Error sending video: {e}")
         return False
 
+def fix_video_metadata(video_content):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_input:
+        temp_input.write(video_content)
+        temp_input_path = temp_input.name
+    
+    temp_output_path = temp_input_path.replace(".mp4", "_fixed.mp4")
+    
+    command = [
+        "ffmpeg", "-i", temp_input_path,
+        "-c:v", "libx264", "-c:a", "aac", "-strict", "experimental",
+        "-movflags", "+faststart",  # Перемещение "moov atom" в начало файла
+        "-preset", "fast", "-crf", "23",  # Оптимальный баланс качества
+        "-y", temp_output_path
+    ]
+    
+    subprocess.run(command, check=True)
+    os.remove(temp_input_path)
+    
+    with open(temp_output_path, "rb") as f:
+        fixed_video_content = f.read()
+    os.remove(temp_output_path)
+    return fixed_video_content
+
 def send_video_as_stream(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
     files = {"video": ("reels_video.mp4", video_content, "video/mp4")}
     data = {
         "chat_id": chat_id,
-        "caption": f"📹 Видео от @{user_name} 🚀",
-        
+        "caption": f"📹 Видео от @{user_name} 🚀"
     }
-    response = requests.post(url, data=data, files=files).json()
-    return response.get("result", {}).get("video", {}).get("file_id")
-
-def is_video_compressed(file_id, original_video_content):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getFile"
-    params = {"file_id": file_id}
-    response = requests.get(url, params=params).json()
-    file_path = response.get("result", {}).get("file_path", "")
-
-    if file_path:
-        download_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/{file_path}"
-        video_response = requests.get(download_url, stream=True)
-        compressed_video_content = video_response.content
-
-        original_resolution = get_video_resolution(original_video_content)
-        compressed_resolution = get_video_resolution(compressed_video_content)
-
-        return compressed_resolution != original_resolution
-    return False
-
-def get_video_resolution(video_content):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video:
-        temp_video.write(video_content)
-        temp_video_path = temp_video.name
-    
-    command = [
-        "ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", temp_video_path
-    ]
-    try:
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-        os.remove(temp_video_path)
-        width, height = map(int, result.stdout.strip().split(","))
-        return (width, height)
-    except:
-        os.remove(temp_video_path)
-        return None
-
-def send_video_as_document(chat_id, video_content, user_name):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
-    files = {"document": ("video_uncompressed.mp4", video_content, "video/mp4")}
-    caption = f"📁 Видео от @{user_name} (отправлено как файл, чтобы избежать искажения)"
-    data = {"chat_id": chat_id, "caption": caption}
     requests.post(url, data=data, files=files)
 
 if __name__ == '__main__':
