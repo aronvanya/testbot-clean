@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
+import cv2
+import numpy as np
 
 app = Flask(__name__)
 
@@ -17,36 +19,21 @@ def webhook():
         message_id = message["message_id"]
         text = message.get("text", "")
 
-        # Получаем имя пользователя
         user_name = message["from"].get("username", "пользователь")
 
-        # Обработка команды /start
         if text == "/start":
-            send_message(chat_id, (
-                "👋 *Привет!*\n\n"
-                "Этот бот поможет вам скачать видео из Instagram Reels. 📹\n\n"
-                "Просто отправьте ссылку на Reels, и я сделаю всё за вас. ✅\n\n"
-                "✨ *Бот также работает в группах!* ✨\n"
-                "Добавьте его в группу и дайте ему права администратора для функционирования. 🚀\n\n"
-                "После добавления отправьте ссылку на Reels, и бот скачает видео для вас. 🎬"
-            ), parse_mode="Markdown")
+            send_message(chat_id, "👋 *Привет!*\n\nОтправь ссылку на Instagram Reels, и я загружу видео.", parse_mode="Markdown")
             return jsonify({"message": "Start command processed"}), 200
 
-        # Обработка ссылки на Reels
         if 'instagram.com/reel/' in text:
             processing_message_id = send_message(chat_id, "⏳ Обрабатываю ссылку, подождите...")
-
             success = send_reels_video(chat_id, text.strip(), user_name)
             if success:
-                # Удаляем сообщения после успешной отправки
                 delete_message(chat_id, processing_message_id)
                 delete_message(chat_id, message_id)
             else:
                 send_message(chat_id, "❌ Не удалось скачать видео. Проверьте ссылку.")
             return jsonify({"message": "Reels link processed"}), 200
-
-        # Игнорируем все остальные сообщения
-        return jsonify({"message": "Message ignored"}), 200
 
     return jsonify({"message": "Webhook received!"}), 200
 
@@ -60,7 +47,6 @@ def send_message(chat_id, text, parse_mode=None):
     if parse_mode:
         payload["parse_mode"] = parse_mode
     response = requests.post(url, json=payload)
-    # Возвращаем ID сообщения для последующего удаления
     return response.json().get("result", {}).get("message_id")
 
 def delete_message(chat_id, message_id):
@@ -71,25 +57,22 @@ def delete_message(chat_id, message_id):
 def send_reels_video(chat_id, reels_url, user_name):
     try:
         loader = instaloader.Instaloader()
-
-        # Парсим короткий код из ссылки
         shortcode = reels_url.split("/")[-2]
         post = instaloader.Post.from_shortcode(loader.context, shortcode)
-
         video_url = post.video_url
+
         if video_url:
             response = requests.get(video_url, stream=True)
             response.raise_for_status()
-
             video_content = response.content
 
-            # Проверка требований Telegram
-            if not is_valid_for_telegram(video_content):
-                # Отправляем видео как документ с пояснением
-                send_video_as_document(chat_id, video_content, user_name, reason=None)
-            else:
-                # Отправляем видео как потоковое
+            # Проверяем размер и продолжительность
+            if not is_valid_video(video_content):
+                send_video_as_document(chat_id, video_content, user_name, reason="размер > 20MB или длительность > 60 секунд")
+            elif is_valid_aspect_ratio(video_content):
                 send_video_as_stream(chat_id, video_content, user_name)
+            else:
+                send_video_as_document(chat_id, video_content, user_name, reason="нестандартное соотношение сторон")
 
             return True
         else:
@@ -99,13 +82,21 @@ def send_reels_video(chat_id, reels_url, user_name):
         print(f"Error sending video: {e}")
         return False
 
-def is_valid_for_telegram(video_content):
+def is_valid_video(video_content):
     video_size_mb = len(video_content) / (1024 * 1024)
-    # Проверка размера файла (до 13 MB)
-    if video_size_mb > 13:
-        return False
-    # Пропустим дополнительные проверки (длина, соотношение сторон) для упрощения
-    return True
+    return video_size_mb <= 20  # Проверяем размер (до 20MB)
+
+
+def is_valid_aspect_ratio(video_content):
+    try:
+        nparr = np.frombuffer(video_content, np.uint8)
+        video = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        height, width, _ = video.shape
+        aspect_ratio = width / height
+        return 0.56 <= aspect_ratio <= 1.91  # Соотношение сторон от 9:16 до 16:9
+    except Exception as e:
+        print(f"Ошибка проверки соотношения сторон: {e}")
+        return True
 
 def send_video_as_stream(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
@@ -120,10 +111,10 @@ def send_video_as_stream(chat_id, video_content, user_name):
 def send_video_as_document(chat_id, video_content, user_name, reason):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
     files = {"document": ("reels_video.mp4", video_content)}
-    data = {
-        "chat_id": chat_id,
-        "caption": f"📁 Видео от @{user_name} (Превышен размер. Видео отправлено как файл) 🚀"
-    }
+    caption = f"📁 Видео от @{user_name}"
+    if reason:
+        caption += f" (Причина: {reason})"
+    data = {"chat_id": chat_id, "caption": caption}
     requests.post(url, data=data, files=files)
 
 if __name__ == '__main__':
