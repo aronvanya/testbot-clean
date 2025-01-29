@@ -12,6 +12,7 @@ TELEGRAM_TOKEN = "7648873218:AAGs6RZlBrVjr1TkmMjO-jvoFT8PxXvSjyM"
 MAX_VIDEO_SIZE_MB = 50  # Максимальный размер для sendVideo (в МБ)
 MAX_DOC_SIZE_MB = 2000  # Максимальный размер для sendDocument (2 ГБ)
 TIMEOUT = 600  # Увеличенный таймаут для загрузки больших файлов
+CHUNK_SIZE = 256 * 1024  # 256KB чанки для потоковой загрузки
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -83,12 +84,8 @@ def send_reels_video(chat_id, reels_url, user_name):
                 send_message(chat_id, "❌ Видео слишком большое (более 2 ГБ). Telegram не поддерживает такие файлы.")
                 return False
             elif video_size_mb > MAX_VIDEO_SIZE_MB:
-                print("Видео слишком большое, загружаем на временный сервер.")
-                temp_url = upload_to_temp_server(video_content)
-                if temp_url:
-                    send_document_via_url(chat_id, temp_url, user_name)
-                else:
-                    send_message(chat_id, "❌ Ошибка при загрузке видео.")
+                print("Видео слишком большое, отправляем как документ.")
+                send_video_as_document(chat_id, video_content, user_name)
             else:
                 width, height, duration = get_video_metadata(video_content)
                 send_video_as_stream(chat_id, video_content, user_name, width, height, duration)
@@ -100,30 +97,25 @@ def send_reels_video(chat_id, reels_url, user_name):
         print(f"Ошибка при загрузке видео: {e}")
         return False
 
-def upload_to_temp_server(video_content):
-    temp_server_url = "https://transfer.sh/original_video.mp4"
-    try:
-        response = requests.put(temp_server_url, data=video_content)
-        if response.status_code == 200:
-            return response.text.strip()
-        else:
-            print(f"Ошибка загрузки на сервер: {response.status_code}, {response.text}")
-            return None
-    except Exception as e:
-        print(f"Ошибка загрузки видео на сервер: {e}")
-        return None
-
-def send_document_via_url(chat_id, file_url, user_name):
+def send_video_as_document(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
+    video_buffer = io.BytesIO(video_content)
+    video_buffer.name = "original_video.mp4"
+    
+    files = {"document": (video_buffer.name, video_buffer, "video/mp4")}
     data = {
         "chat_id": chat_id,
-        "document": file_url,
         "caption": f"📁 Видео от @{user_name} (отправлено как файл, чтобы избежать искажения)",
         "allow_sending_without_reply": True
     }
-    response = requests.post(url, json=data, timeout=TIMEOUT)
-    if response.status_code != 200:
-        print(f"Ошибка при отправке документа через URL: {response.status_code}, {response.text}")
+    
+    response = requests.post(url, files=files, data=data, timeout=TIMEOUT, stream=True)
+    
+    if response.status_code == 413:
+        send_message(chat_id, "❌ Файл слишком большой для отправки в Telegram.")
+        print(f"Ошибка 413: {response.content}")
+    elif response.status_code != 200:
+        print(f"Ошибка при отправке документа: {response.status_code}, {response.content}")
 
 if __name__ == '__main__':
     app.run(debug=True)
