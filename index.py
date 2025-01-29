@@ -96,7 +96,8 @@ def send_reels_video(chat_id, reels_url, user_name):
                 print("Видео слишком большое, отправляем как документ.")
                 send_video_as_document(chat_id, video_content, user_name)
             else:
-                send_video_as_stream(chat_id, video_content, user_name)
+                width, height, duration = 720, 1280, 10  # Значения по умолчанию
+                send_video_as_stream(chat_id, video_content, user_name, width, height, duration)
             return True
         else:
             print("Видео не найдено в посте.")
@@ -105,12 +106,15 @@ def send_reels_video(chat_id, reels_url, user_name):
         print(f"Ошибка при загрузке видео: {e}")
         return False
 
-def send_video_as_stream(chat_id, video_content, user_name):
+def send_video_as_stream(chat_id, video_content, user_name, width, height, duration):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
     files = {"video": ("fixed_video.mp4", video_content, "video/mp4")}
     data = {
         "chat_id": chat_id,
         "caption": f"📹 Видео от @{user_name} 🚀",
+        "width": width,
+        "height": height,
+        "duration": duration,
         "supports_streaming": True
     }
     response = requests.post(url, data=data, files=files, timeout=TIMEOUT)
