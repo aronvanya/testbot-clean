@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
-import subprocess
 import tempfile
 
 app = Flask(__name__)
@@ -66,8 +65,7 @@ def send_reels_video(chat_id, reels_url, user_name):
             response.raise_for_status()
             video_content = response.content
 
-            processed_video_content = fix_video_metadata(video_content)
-            send_video_as_stream(chat_id, processed_video_content, user_name)
+            send_video_as_stream(chat_id, video_content, user_name)
             return True
         else:
             print("Видео не найдено в посте.")
@@ -76,29 +74,6 @@ def send_reels_video(chat_id, reels_url, user_name):
         print(f"Error sending video: {e}")
         return False
 
-def fix_video_metadata(video_content):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_input:
-        temp_input.write(video_content)
-        temp_input_path = temp_input.name
-    
-    temp_output_path = temp_input_path.replace(".mp4", "_fixed.mp4")
-    
-    command = [
-        "ffmpeg", "-i", temp_input_path,
-        "-c:v", "libx264", "-c:a", "aac", "-strict", "experimental",
-        "-movflags", "+faststart",  # Перемещение "moov atom" в начало файла
-        "-preset", "fast", "-crf", "23",  # Оптимальный баланс качества
-        "-y", temp_output_path
-    ]
-    
-    subprocess.run(command, check=True)
-    os.remove(temp_input_path)
-    
-    with open(temp_output_path, "rb") as f:
-        fixed_video_content = f.read()
-    os.remove(temp_output_path)
-    return fixed_video_content
-
 def send_video_as_stream(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
     files = {"video": ("reels_video.mp4", video_content, "video/mp4")}
@@ -106,6 +81,17 @@ def send_video_as_stream(chat_id, video_content, user_name):
         "chat_id": chat_id,
         "caption": f"📹 Видео от @{user_name} 🚀"
     }
+    response = requests.post(url, data=data, files=files)
+    
+    # Если видео сжалось, повторно отправляем как документ
+    if response.status_code != 200:
+        send_video_as_document(chat_id, video_content, user_name)
+
+def send_video_as_document(chat_id, video_content, user_name):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
+    files = {"document": ("video_uncompressed.mp4", video_content, "video/mp4")}
+    caption = f"📁 Видео от @{user_name} (отправлено как файл, чтобы избежать искажения)"
+    data = {"chat_id": chat_id, "caption": caption}
     requests.post(url, data=data, files=files)
 
 if __name__ == '__main__':
