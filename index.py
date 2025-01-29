@@ -3,6 +3,7 @@ import os
 import requests
 import instaloader
 import tempfile
+import subprocess
 
 app = Flask(__name__)
 
@@ -65,7 +66,8 @@ def send_reels_video(chat_id, reels_url, user_name):
             response.raise_for_status()
             video_content = response.content
 
-            send_video_as_stream(chat_id, video_content, user_name)
+            width, height, duration = get_video_metadata(video_content)
+            send_video_as_stream(chat_id, video_content, user_name, width, height, duration)
             return True
         else:
             print("Видео не найдено в посте.")
@@ -74,16 +76,35 @@ def send_reels_video(chat_id, reels_url, user_name):
         print(f"Error sending video: {e}")
         return False
 
-def send_video_as_stream(chat_id, video_content, user_name):
+def get_video_metadata(video_content):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video:
+        temp_video.write(video_content)
+        temp_video_path = temp_video.name
+    
+    command = [
+        "ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,duration", "-of", "csv=p=0", temp_video_path
+    ]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        os.remove(temp_video_path)
+        width, height, duration = map(float, result.stdout.strip().split(","))
+        return int(width), int(height), int(duration)
+    except:
+        os.remove(temp_video_path)
+        return 640, 360, 10  # Значения по умолчанию
+
+def send_video_as_stream(chat_id, video_content, user_name, width, height, duration):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
     files = {"video": ("reels_video.mp4", video_content, "video/mp4")}
     data = {
         "chat_id": chat_id,
-        "caption": f"📹 Видео от @{user_name} 🚀"
+        "caption": f"📹 Видео от @{user_name} 🚀",
+        "width": width,
+        "height": height,
+        "duration": duration
     }
     response = requests.post(url, data=data, files=files)
     
-    # Если видео сжалось, повторно отправляем как документ
     if response.status_code != 200:
         send_video_as_document(chat_id, video_content, user_name)
 
