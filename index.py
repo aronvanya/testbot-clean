@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
+import subprocess
 
 app = Flask(__name__)
 
@@ -64,8 +65,8 @@ def send_reels_video(chat_id, reels_url, user_name):
             response.raise_for_status()
             video_content = response.content
 
-            if not is_valid_video(video_content):
-                send_video_as_document(chat_id, video_content, user_name, reason="размер > 20MB или длительность > 60 секунд")
+            if not is_valid_video(video_content) or not is_valid_aspect_ratio(video_content):
+                send_video_as_document(chat_id, video_content, user_name, reason="размер > 20MB, длительность > 60 секунд или нестандартное соотношение сторон")
             else:
                 send_video_as_stream(chat_id, video_content, user_name)
 
@@ -80,6 +81,22 @@ def send_reels_video(chat_id, reels_url, user_name):
 def is_valid_video(video_content):
     video_size_mb = len(video_content) / (1024 * 1024)
     return video_size_mb <= 20  # Проверяем размер (до 20MB)
+
+def is_valid_aspect_ratio(video_content):
+    try:
+        with open("temp_video.mp4", "wb") as f:
+            f.write(video_content)
+        result = subprocess.run([
+            "ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", "temp_video.mp4"
+        ], capture_output=True, text=True)
+        os.remove("temp_video.mp4")
+        if result.returncode == 0:
+            width, height = map(int, result.stdout.strip().split(","))
+            aspect_ratio = width / height
+            return 0.56 <= aspect_ratio <= 1.91  # Соотношение сторон от 9:16 до 16:9
+    except Exception as e:
+        print(f"Ошибка проверки соотношения сторон: {e}")
+    return False
 
 def send_video_as_stream(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
