@@ -12,6 +12,7 @@ TELEGRAM_TOKEN = "7648873218:AAGs6RZlBrVjr1TkmMjO-jvoFT8PxXvSjyM"
 MAX_VIDEO_SIZE_MB = 50  # Максимальный размер для sendVideo (в МБ)
 MAX_DOC_SIZE_MB = 2000  # Максимальный размер для sendDocument (2 ГБ)
 TIMEOUT = 600  # Увеличенный таймаут для загрузки больших файлов
+CHUNK_SIZE = 1024 * 1024  # 1MB чанки для потоковой загрузки
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -84,7 +85,7 @@ def send_reels_video(chat_id, reels_url, user_name):
                 return False
             elif video_size_mb > MAX_VIDEO_SIZE_MB:
                 print("Видео слишком большое, отправляем как документ.")
-                send_video_as_document(chat_id, video_content, user_name)
+                send_video_as_document(chat_id, video_url, user_name)
             else:
                 width, height, duration = get_video_metadata(video_content)
                 send_video_as_stream(chat_id, video_content, user_name, width, height, duration)
@@ -96,22 +97,18 @@ def send_reels_video(chat_id, reels_url, user_name):
         print(f"Ошибка при загрузке видео: {e}")
         return False
 
-def send_video_as_document(chat_id, video_content, user_name):
+def send_video_as_document(chat_id, video_url, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
-    video_buffer = io.BytesIO(video_content)
-    video_buffer.name = "original_video.mp4"
-    video_size = len(video_content)
-    headers = {
-        "Content-Length": str(video_size),
-        "Content-Type": "multipart/form-data"
-    }
-    files = {"document": (video_buffer.name, video_buffer, "video/mp4")}
+    headers = {"Content-Type": "multipart/form-data"}
     data = {
         "chat_id": chat_id,
         "caption": f"📁 Видео от @{user_name} (отправлено как файл, чтобы избежать искажения)",
         "allow_sending_without_reply": True
     }
-    response = requests.post(url, files=files, data=data, headers=headers, timeout=TIMEOUT, stream=True)
+    
+    with requests.get(video_url, stream=True) as video_stream:
+        files = {"document": ("original_video.mp4", video_stream.raw, "video/mp4")}
+        response = requests.post(url, files=files, data=data, headers=headers, timeout=TIMEOUT)
     
     if response.status_code == 413:
         send_message(chat_id, "❌ Файл слишком большой для отправки в Telegram.")
