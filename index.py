@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
-import tempfile
 
 app = Flask(__name__)
 
@@ -65,10 +64,9 @@ def send_reels_video(chat_id, reels_url, user_name):
             response.raise_for_status()
             video_content = response.content
 
-            if len(video_content) > 20 * 1024 * 1024:
-                send_video_as_document(chat_id, video_content, user_name, reason="размер > 20MB")
-            else:
-                send_video_as_stream(chat_id, video_content, user_name)
+            success = send_video_as_stream(chat_id, video_content, user_name)
+            if not success:
+                send_video_as_document(chat_id, video_content, user_name)
 
             return True
         else:
@@ -86,14 +84,13 @@ def send_video_as_stream(chat_id, video_content, user_name):
         "caption": f"📹 Видео от @{user_name} 🚀",
         "supports_streaming": True
     }
-    requests.post(url, data=data, files=files)
+    response = requests.post(url, data=data, files=files)
+    return response.status_code == 200
 
-def send_video_as_document(chat_id, video_content, user_name, reason):
+def send_video_as_document(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
-    files = {"document": ("reels_video.mp4", video_content, "video/mp4")}
-    caption = f"📁 Видео от @{user_name}"
-    if reason:
-        caption += f" (Причина: {reason})"
+    files = {"document": ("video_uncompressed.mp4", video_content, "video/mp4")}
+    caption = f"📁 Видео от @{user_name} (отправлено как файл, чтобы избежать искажения)"
     data = {"chat_id": chat_id, "caption": caption}
     requests.post(url, data=data, files=files)
 
