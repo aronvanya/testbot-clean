@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
-import subprocess
 import tempfile
 
 app = Flask(__name__)
@@ -66,18 +65,11 @@ def send_reels_video(chat_id, reels_url, user_name):
             response.raise_for_status()
             video_content = response.content
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video:
-                temp_video.write(video_content)
-                temp_video_path = temp_video.name
+            if len(video_content) > 20 * 1024 * 1024:
+                send_video_as_document(chat_id, video_content, user_name, reason="размер > 20MB")
+            else:
+                send_video_as_stream(chat_id, video_content, user_name)
 
-            processed_video_path = process_video(temp_video_path)
-
-            with open(processed_video_path, "rb") as f:
-                processed_video_content = f.read()
-
-            send_video_as_stream(chat_id, processed_video_content, user_name)
-            os.remove(temp_video_path)
-            os.remove(processed_video_path)
             return True
         else:
             print("Видео не найдено в посте.")
@@ -85,19 +77,6 @@ def send_reels_video(chat_id, reels_url, user_name):
     except Exception as e:
         print(f"Error sending video: {e}")
         return False
-
-def process_video(input_path):
-    output_path = input_path.replace(".mp4", "_processed.mp4")
-    command = [
-        "ffmpeg", "-y", "-i", input_path,
-        "-vf", "scale=720:-1",  # Устанавливаем ширину 720px, высота пропорциональная
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",  # H.264, баланс качества и размера
-        "-c:a", "aac", "-b:a", "128k",  # AAC аудио
-        "-movflags", "+faststart",  # Для потокового воспроизведения
-        output_path
-    ]
-    subprocess.run(command, check=True)
-    return output_path
 
 def send_video_as_stream(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
@@ -107,6 +86,15 @@ def send_video_as_stream(chat_id, video_content, user_name):
         "caption": f"📹 Видео от @{user_name} 🚀",
         "supports_streaming": True
     }
+    requests.post(url, data=data, files=files)
+
+def send_video_as_document(chat_id, video_content, user_name, reason):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
+    files = {"document": ("reels_video.mp4", video_content, "video/mp4")}
+    caption = f"📁 Видео от @{user_name}"
+    if reason:
+        caption += f" (Причина: {reason})"
+    data = {"chat_id": chat_id, "caption": caption}
     requests.post(url, data=data, files=files)
 
 if __name__ == '__main__':
