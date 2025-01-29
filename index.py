@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
-import tempfile
+import io
 import subprocess
 
 app = Flask(__name__)
@@ -98,13 +98,17 @@ def send_reels_video(chat_id, reels_url, user_name):
 
 def send_video_as_document(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
-    files = {"document": ("original_video.mp4", video_content, "video/mp4")}
+    video_buffer = io.BytesIO(video_content)
+    video_buffer.name = "original_video.mp4"
+    
+    files = {"document": (video_buffer.name, video_buffer, "video/mp4")}
     data = {
         "chat_id": chat_id,
         "caption": f"📁 Видео от @{user_name} (отправлено как файл, чтобы избежать искажения)",
         "allow_sending_without_reply": True
     }
     response = requests.post(url, files=files, data=data, timeout=TIMEOUT)
+    
     if response.status_code == 413:
         send_message(chat_id, "❌ Файл слишком большой для отправки в Telegram.")
         print(f"Ошибка 413: {response.content}")
