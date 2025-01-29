@@ -9,6 +9,7 @@ app = Flask(__name__)
 
 WEBHOOK_URL = "https://testbot-clean.vercel.app/webhook"
 TELEGRAM_TOKEN = "7648873218:AAGs6RZlBrVjr1TkmMjO-jvoFT8PxXvSjyM"
+MAX_VIDEO_SIZE_MB = 50  # Максимальный размер для sendVideo (в МБ)
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -73,8 +74,12 @@ def send_reels_video(chat_id, reels_url, user_name):
             response.raise_for_status()
             video_content = response.content
 
-            width, height, duration = get_video_metadata(video_content)
-            send_video_as_stream(chat_id, video_content, user_name, width, height, duration)
+            video_size_mb = len(video_content) / (1024 * 1024)  # Размер в МБ
+            if video_size_mb > MAX_VIDEO_SIZE_MB:
+                send_video_as_document(chat_id, video_content, user_name)
+            else:
+                width, height, duration = get_video_metadata(video_content)
+                send_video_as_stream(chat_id, video_content, user_name, width, height, duration)
             return True
         else:
             print("Видео не найдено в посте.")
@@ -109,9 +114,9 @@ def send_video_as_stream(chat_id, video_content, user_name, width, height, durat
         "width": width,
         "height": height,
         "duration": duration,
-        "supports_streaming": False  # Отключаем, чтобы Telegram не трогал видео
+        "supports_streaming": False
     }
-    response = requests.post(url, data=data, files=files)
+    response = requests.post(url, data=data, files=files, timeout=300)
     
     if response.status_code != 200:
         send_video_as_document(chat_id, video_content, user_name)
@@ -121,7 +126,7 @@ def send_video_as_document(chat_id, video_content, user_name):
     files = {"document": ("original_video.mp4", video_content, "video/mp4")}
     caption = f"📁 Видео от @{user_name} (отправлено как файл, чтобы избежать искажения)"
     data = {"chat_id": chat_id, "caption": caption}
-    requests.post(url, data=data, files=files)
+    requests.post(url, data=data, files=files, timeout=300)
 
 if __name__ == '__main__':
     app.run(debug=True)
