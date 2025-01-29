@@ -2,8 +2,6 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
-import cv2
-import numpy as np
 
 app = Flask(__name__)
 
@@ -66,13 +64,10 @@ def send_reels_video(chat_id, reels_url, user_name):
             response.raise_for_status()
             video_content = response.content
 
-            # Проверяем размер и продолжительность
             if not is_valid_video(video_content):
                 send_video_as_document(chat_id, video_content, user_name, reason="размер > 20MB или длительность > 60 секунд")
-            elif is_valid_aspect_ratio(video_content):
-                send_video_as_stream(chat_id, video_content, user_name)
             else:
-                send_video_as_document(chat_id, video_content, user_name, reason="нестандартное соотношение сторон")
+                send_video_as_stream(chat_id, video_content, user_name)
 
             return True
         else:
@@ -85,18 +80,6 @@ def send_reels_video(chat_id, reels_url, user_name):
 def is_valid_video(video_content):
     video_size_mb = len(video_content) / (1024 * 1024)
     return video_size_mb <= 20  # Проверяем размер (до 20MB)
-
-
-def is_valid_aspect_ratio(video_content):
-    try:
-        nparr = np.frombuffer(video_content, np.uint8)
-        video = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        height, width, _ = video.shape
-        aspect_ratio = width / height
-        return 0.56 <= aspect_ratio <= 1.91  # Соотношение сторон от 9:16 до 16:9
-    except Exception as e:
-        print(f"Ошибка проверки соотношения сторон: {e}")
-        return True
 
 def send_video_as_stream(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
