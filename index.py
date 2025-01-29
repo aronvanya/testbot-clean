@@ -3,6 +3,7 @@ import os
 import requests
 import instaloader
 import subprocess
+import tempfile
 
 app = Flask(__name__)
 
@@ -98,10 +99,30 @@ def is_video_compressed(file_id, original_video_content):
     if file_path:
         download_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/{file_path}"
         video_response = requests.get(download_url, stream=True)
-        compressed_size = int(video_response.headers.get("Content-Length", 0))
-        original_size = len(original_video_content)
-        return compressed_size < original_size * 0.9  # Если размер уменьшился на 10% и больше
+        compressed_video_content = video_response.content
+
+        original_resolution = get_video_resolution(original_video_content)
+        compressed_resolution = get_video_resolution(compressed_video_content)
+
+        return compressed_resolution != original_resolution
     return False
+
+def get_video_resolution(video_content):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video:
+        temp_video.write(video_content)
+        temp_video_path = temp_video.name
+    
+    command = [
+        "ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", temp_video_path
+    ]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        os.remove(temp_video_path)
+        width, height = map(int, result.stdout.strip().split(","))
+        return (width, height)
+    except:
+        os.remove(temp_video_path)
+        return None
 
 def send_video_as_document(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
