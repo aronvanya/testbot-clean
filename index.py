@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import os
 import requests
 import instaloader
+import subprocess
 
 app = Flask(__name__)
 
@@ -64,9 +65,9 @@ def send_reels_video(chat_id, reels_url, user_name):
             response.raise_for_status()
             video_content = response.content
 
-            message_id = send_video_as_stream(chat_id, video_content, user_name)
-            if message_id and is_video_compressed(message_id, video_content):
-                delete_message(chat_id, message_id)
+            file_id = send_video_as_stream(chat_id, video_content, user_name)
+            if file_id and is_video_compressed(file_id, video_content):
+                delete_message(chat_id, file_id)
                 send_video_as_document(chat_id, video_content, user_name)
 
             return True
@@ -85,12 +86,12 @@ def send_video_as_stream(chat_id, video_content, user_name):
         "caption": f"📹 Видео от @{user_name} 🚀",
         "supports_streaming": True
     }
-    response = requests.post(url, data=data, files=files)
-    return response.json().get("result", {}).get("message_id") if response.status_code == 200 else None
+    response = requests.post(url, data=data, files=files).json()
+    return response.get("result", {}).get("video", {}).get("file_id")
 
-def is_video_compressed(message_id, original_video_content):
+def is_video_compressed(file_id, original_video_content):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getFile"
-    params = {"file_id": message_id}
+    params = {"file_id": file_id}
     response = requests.get(url, params=params).json()
     file_path = response.get("result", {}).get("file_path", "")
 
