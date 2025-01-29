@@ -85,7 +85,7 @@ def send_video_as_stream(chat_id, video_content, user_name):
     data = {
         "chat_id": chat_id,
         "caption": f"📹 Видео от @{user_name} 🚀",
-        "supports_streaming": True
+        
     }
     response = requests.post(url, data=data, files=files).json()
     return response.get("result", {}).get("video", {}).get("file_id")
