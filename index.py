@@ -69,8 +69,6 @@ def send_reels_video(chat_id, reels_url, user_name):
 
             if not is_valid_video(video_content):
                 send_video_as_document(chat_id, video_content, user_name, reason="размер > 20MB или длительность > 60 секунд")
-            elif not is_valid_aspect_ratio(video_content):
-                send_video_as_document(chat_id, video_content, user_name, reason="нестандартное соотношение сторон")
             else:
                 send_video_as_stream(chat_id, video_content, user_name)
 
@@ -86,26 +84,9 @@ def is_valid_video(video_content):
     video_size_mb = len(video_content) / (1024 * 1024)
     return video_size_mb <= 20  # Проверяем размер (до 20MB)
 
-def is_valid_aspect_ratio(video_content):
-    try:
-        process = subprocess.run([
-            "ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0"],
-            input=video_content,
-            capture_output=True,
-            text=True)
-        
-        match = re.search(r"(\d+),(\d+)", process.stdout)
-        if match:
-            width, height = map(int, match.groups())
-            aspect_ratio = width / height
-            return 0.56 <= aspect_ratio <= 1.91  # Соотношение сторон от 9:16 до 16:9
-    except Exception as e:
-        print(f"Ошибка проверки соотношения сторон: {e}")
-    return True
-
 def send_video_as_stream(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
-    files = {"video": ("reels_video.mp4", video_content)}
+    files = {"video": ("reels_video.mp4", video_content, "video/mp4")}
     data = {
         "chat_id": chat_id,
         "caption": f"📹 Видео от @{user_name} 🚀",
@@ -115,7 +96,7 @@ def send_video_as_stream(chat_id, video_content, user_name):
 
 def send_video_as_document(chat_id, video_content, user_name, reason):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
-    files = {"document": ("reels_video.mp4", video_content)}
+    files = {"document": ("reels_video.mp4", video_content, "video/mp4")}
     caption = f"📁 Видео от @{user_name}"
     if reason:
         caption += f" (Причина: {reason})"
