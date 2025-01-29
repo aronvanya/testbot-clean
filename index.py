@@ -10,6 +10,7 @@ app = Flask(__name__)
 WEBHOOK_URL = "https://testbot-clean.vercel.app/webhook"
 TELEGRAM_TOKEN = "7648873218:AAGs6RZlBrVjr1TkmMjO-jvoFT8PxXvSjyM"
 MAX_VIDEO_SIZE_MB = 50  # Максимальный размер для sendVideo (в МБ)
+MAX_DOC_SIZE_MB = 2000  # Максимальный размер для sendDocument (2 ГБ)
 TIMEOUT = 600  # Увеличенный таймаут для загрузки больших файлов
 
 @app.route('/webhook', methods=['POST'])
@@ -78,7 +79,10 @@ def send_reels_video(chat_id, reels_url, user_name):
             video_size_mb = len(video_content) / (1024 * 1024)  # Размер в МБ
             print(f"Видео загружено, размер: {video_size_mb:.2f} MB")
 
-            if video_size_mb > MAX_VIDEO_SIZE_MB:
+            if video_size_mb > MAX_DOC_SIZE_MB:
+                send_message(chat_id, "❌ Видео слишком большое (более 2 ГБ). Telegram не поддерживает такие файлы.")
+                return False
+            elif video_size_mb > MAX_VIDEO_SIZE_MB:
                 print("Видео слишком большое, отправляем как документ.")
                 send_video_as_document(chat_id, video_content, user_name)
             else:
@@ -120,11 +124,7 @@ def send_video_as_stream(chat_id, video_content, user_name, width, height, durat
         "duration": duration,
         "supports_streaming": False
     }
-    response = requests.post(url, data=data, files=files, timeout=TIMEOUT)
-    
-    if response.status_code != 200:
-        print(f"Ошибка при отправке видео: {response.status_code}, отправляем как документ.")
-        send_video_as_document(chat_id, video_content, user_name)
+    requests.post(url, data=data, files=files, timeout=TIMEOUT)
 
 def send_video_as_document(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
@@ -132,7 +132,9 @@ def send_video_as_document(chat_id, video_content, user_name):
     caption = f"📁 Видео от @{user_name} (отправлено как файл, чтобы избежать искажения)"
     data = {"chat_id": chat_id, "caption": caption}
     response = requests.post(url, data=data, files=files, timeout=TIMEOUT)
-    if response.status_code != 200:
+    if response.status_code == 413:
+        send_message(chat_id, "❌ Файл слишком большой для отправки в Telegram.")
+    elif response.status_code != 200:
         print(f"Ошибка при отправке документа: {response.status_code}")
 
 if __name__ == '__main__':
