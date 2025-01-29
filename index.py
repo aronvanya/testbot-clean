@@ -10,6 +10,7 @@ app = Flask(__name__)
 WEBHOOK_URL = "https://testbot-clean.vercel.app/webhook"
 TELEGRAM_TOKEN = "7648873218:AAGs6RZlBrVjr1TkmMjO-jvoFT8PxXvSjyM"
 MAX_VIDEO_SIZE_MB = 50  # Максимальный размер для sendVideo (в МБ)
+TIMEOUT = 600  # Увеличенный таймаут для загрузки больших файлов
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -75,7 +76,10 @@ def send_reels_video(chat_id, reels_url, user_name):
             video_content = response.content
 
             video_size_mb = len(video_content) / (1024 * 1024)  # Размер в МБ
+            print(f"Видео загружено, размер: {video_size_mb:.2f} MB")
+
             if video_size_mb > MAX_VIDEO_SIZE_MB:
+                print("Видео слишком большое, отправляем как документ.")
                 send_video_as_document(chat_id, video_content, user_name)
             else:
                 width, height, duration = get_video_metadata(video_content)
@@ -85,7 +89,7 @@ def send_reels_video(chat_id, reels_url, user_name):
             print("Видео не найдено в посте.")
             return False
     except Exception as e:
-        print(f"Error sending video: {e}")
+        print(f"Ошибка при загрузке видео: {e}")
         return False
 
 def get_video_metadata(video_content):
@@ -116,9 +120,10 @@ def send_video_as_stream(chat_id, video_content, user_name, width, height, durat
         "duration": duration,
         "supports_streaming": False
     }
-    response = requests.post(url, data=data, files=files, timeout=300)
+    response = requests.post(url, data=data, files=files, timeout=TIMEOUT)
     
     if response.status_code != 200:
+        print(f"Ошибка при отправке видео: {response.status_code}, отправляем как документ.")
         send_video_as_document(chat_id, video_content, user_name)
 
 def send_video_as_document(chat_id, video_content, user_name):
@@ -126,7 +131,9 @@ def send_video_as_document(chat_id, video_content, user_name):
     files = {"document": ("original_video.mp4", video_content, "video/mp4")}
     caption = f"📁 Видео от @{user_name} (отправлено как файл, чтобы избежать искажения)"
     data = {"chat_id": chat_id, "caption": caption}
-    requests.post(url, data=data, files=files, timeout=300)
+    response = requests.post(url, data=data, files=files, timeout=TIMEOUT)
+    if response.status_code != 200:
+        print(f"Ошибка при отправке документа: {response.status_code}")
 
 if __name__ == '__main__':
     app.run(debug=True)
