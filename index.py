@@ -100,14 +100,18 @@ def send_video_as_document(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
     video_buffer = io.BytesIO(video_content)
     video_buffer.name = "original_video.mp4"
-    
+    video_size = len(video_content)
+    headers = {
+        "Content-Length": str(video_size),
+        "Content-Type": "multipart/form-data"
+    }
     files = {"document": (video_buffer.name, video_buffer, "video/mp4")}
     data = {
         "chat_id": chat_id,
         "caption": f"📁 Видео от @{user_name} (отправлено как файл, чтобы избежать искажения)",
         "allow_sending_without_reply": True
     }
-    response = requests.post(url, files=files, data=data, timeout=TIMEOUT)
+    response = requests.post(url, files=files, data=data, headers=headers, timeout=TIMEOUT, stream=True)
     
     if response.status_code == 413:
         send_message(chat_id, "❌ Файл слишком большой для отправки в Telegram.")
