@@ -3,6 +3,7 @@ import requests
 import instaloader
 import io
 import time
+import http.cookiejar as cookiejar
 
 app = Flask(__name__)
 
@@ -90,17 +91,17 @@ def send_reels_video(chat_id, reels_url, user_name):
     try:
         loader = instaloader.Instaloader()
 
-        # Передаем куки напрямую в Instaloader
-        loader.context.cookie_jar.set_cookie(instaloader.Cookie(name='csrftoken', value=cookies["csrftoken"], domain='.instagram.com'))
-        loader.context.cookie_jar.set_cookie(instaloader.Cookie(name='datr', value=cookies["datr"], domain='.instagram.com'))
-        loader.context.cookie_jar.set_cookie(instaloader.Cookie(name='dpr', value=cookies["dpr"], domain='.instagram.com'))
-        loader.context.cookie_jar.set_cookie(instaloader.Cookie(name='ds_user_id', value=cookies["ds_user_id"], domain='.instagram.com'))
-        loader.context.cookie_jar.set_cookie(instaloader.Cookie(name='ig_did', value=cookies["ig_did"], domain='.instagram.com'))
-        loader.context.cookie_jar.set_cookie(instaloader.Cookie(name='ig_nrcb', value=cookies["ig_nrcb"], domain='.instagram.com'))
-        loader.context.cookie_jar.set_cookie(instaloader.Cookie(name='mid', value=cookies["mid"], domain='.instagram.com'))
-        loader.context.cookie_jar.set_cookie(instaloader.Cookie(name='rur', value=cookies["rur"], domain='.instagram.com'))
-        loader.context.cookie_jar.set_cookie(instaloader.Cookie(name='sessionid', value=cookies["sessionid"], domain='.instagram.com'))
-        loader.context.cookie_jar.set_cookie(instaloader.Cookie(name='wd', value=cookies["wd"], domain='.instagram.com'))
+        # Создаем объект cookie_jar
+        cj = cookiejar.CookieJar()
+        for cookie_name, cookie_value in cookies.items():
+            cookie = cookiejar.Cookie(version=0, name=cookie_name, value=cookie_value, port=None,
+                                      port_specified=False, domain=".instagram.com", domain_specified=True,
+                                      domain_initial_dot=True, path="/", path_specified=True, secure=False,
+                                      expires=None, discard=True, comment=None, comment_url=None, rest={})
+            cj.set_cookie(cookie)
+
+        # Устанавливаем cookies для Instaloader
+        loader.context.cookie_jar = cj
 
         shortcode = reels_url.split("/")[-2]
         post = instaloader.Post.from_shortcode(loader.context, shortcode)
