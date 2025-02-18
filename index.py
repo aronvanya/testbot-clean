@@ -1,9 +1,8 @@
 from flask import Flask, request, jsonify
-import os
 import requests
 import io
-import yt_dlp  # Используем yt-dlp
-import time
+import subprocess
+import yt_dlp  # Импортируем yt-dlp
 
 app = Flask(__name__)
 
@@ -73,41 +72,38 @@ def delete_message(chat_id, message_id):
     payload = {"chat_id": chat_id, "message_id": message_id}
     requests.post(url, json=payload)
 
-def download_instagram_reel(url):
-    """Скачивает видео из Instagram Reels через yt-dlp."""
+def send_reels_video(chat_id, reels_url, user_name):
     try:
+        # Используем yt-dlp для загрузки видео
         ydl_opts = {
-            'format': 'b',  # Лучший доступный формат
-            'outtmpl': 'video.mp4',  # Путь сохранения
+            'format': 'bestvideo+bestaudio/best',  # Скачиваем лучший доступный формат
+            'quiet': True,  # Не показывать логи загрузки
+            'outtmpl': '-',  # Выводить в stdout (в память)
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])  # Скачиваем видео
 
-        with open('video.mp4', 'rb') as video_file:
-            return video_file.read()
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            result = ydl.extract_info(reels_url, download=True)
+            video_content = ydl.extract(url=reels_url)
+
+        if video_content:
+            video_size_mb = len(video_content) / (1024 * 1024)
+            print(f"Видео загружено, размер: {video_size_mb:.2f} MB")
+
+            if video_size_mb > MAX_DOC_SIZE_MB:
+                send_message(chat_id, "❌ Видео слишком большое (более 2 ГБ). Telegram не поддерживает такие файлы.")
+                return False
+            elif video_size_mb > MAX_VIDEO_SIZE_MB:
+                print("Видео слишком большое, отправляем как документ.")
+                send_video_as_document(chat_id, video_content, user_name)
+            else:
+                width, height, duration = 720, 1280, 10  # Значения по умолчанию
+                send_video_as_stream(chat_id, video_content, user_name, width, height, duration)
+            return True
+        else:
+            print("Видео не найдено в посте.")
+            return False
     except Exception as e:
         print(f"Ошибка при загрузке видео: {e}")
-        return None
-
-def send_reels_video(chat_id, reels_url, user_name):
-    video_content = download_instagram_reel(reels_url)
-
-    if video_content:
-        video_size_mb = len(video_content) / (1024 * 1024)
-        print(f"Видео загружено, размер: {video_size_mb:.2f} MB")
-
-        if video_size_mb > MAX_DOC_SIZE_MB:
-            send_message(chat_id, "❌ Видео слишком большое (более 2 ГБ). Telegram не поддерживает такие файлы.")
-            return False
-        elif video_size_mb > MAX_VIDEO_SIZE_MB:
-            print("Видео слишком большое, отправляем как документ.")
-            send_video_as_document(chat_id, video_content, user_name)
-        else:
-            width, height, duration = 720, 1280, 10  # Значения по умолчанию
-            send_video_as_stream(chat_id, video_content, user_name, width, height, duration)
-        return True
-    else:
-        print("Видео не найдено в посте.")
         return False
 
 def send_video_as_stream(chat_id, video_content, user_name, width, height, duration):
