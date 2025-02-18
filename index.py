@@ -81,13 +81,9 @@ def send_reels_video(chat_id, reels_url, user_name):
         username = "reelscaster"  # Ваш логин Instagram
         password = "Qwerty_1994"  # Ваш пароль Instagram
         
-        # Авторизация
+        # Отключаем сохранение сессии и логинимся
         loader.context.log("Logging in...")
-        loader.load_session_from_file(username)  # Попытаться загрузить сессию (если она уже есть)
-        if not loader.context.is_logged_in:
-            loader.context.log("Login failed. Trying with provided credentials.")
-            loader.context.login(username, password)  # Логин с использованием пароля
-            loader.save_session_to_file()  # Сохранить сессию для повторного использования
+        loader.context.login(username, password)  # Логин с использованием пароля
 
         shortcode = reels_url.split("/")[-2]
         post = instaloader.Post.from_shortcode(loader.context, shortcode)
