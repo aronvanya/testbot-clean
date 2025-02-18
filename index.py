@@ -1,8 +1,9 @@
 from flask import Flask, request, jsonify
 import os
 import requests
-import yt_dlp
+import instaloader
 import io
+import subprocess
 import time
 
 app = Flask(__name__)
@@ -75,17 +76,22 @@ def delete_message(chat_id, message_id):
 
 def send_reels_video(chat_id, reels_url, user_name):
     try:
-        ydl_opts = {
-            'format': 'bestvideo/best',  # Скачиваем только лучший видео поток
-            'quiet': True,  # Не показывать логи
-            'outtmpl': '-',  # Скачиваем в stdout (в память)
-            'noplaylist': True,  # Отключить обработку плейлистов
-            'no_check_certificate': True,  # Отключаем проверку сертификатов
-        }
+        # Логинимся в Instagram с использованием аккаунта
+        loader = instaloader.Instaloader()
+        username = "reelscaster"  # Ваш логин Instagram
+        password = "Qwerty_1994"  # Ваш пароль Instagram
+        
+        # Авторизация
+        loader.context.log("Logging in...")
+        loader.load_session_from_file(username)  # Попытаться загрузить сессию (если она уже есть)
+        if not loader.context.is_logged_in:
+            loader.context.log("Login failed. Trying with provided credentials.")
+            loader.context.login(username, password)  # Логин с использованием пароля
+            loader.save_session_to_file()  # Сохранить сессию для повторного использования
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            result = ydl.extract_info(reels_url, download=True)
-            video_url = result['formats'][0]['url']  # Берем ссылку на лучший формат
+        shortcode = reels_url.split("/")[-2]
+        post = instaloader.Post.from_shortcode(loader.context, shortcode)
+        video_url = post.video_url
 
         if video_url:
             response = requests.get(video_url, stream=True, timeout=TIMEOUT)
