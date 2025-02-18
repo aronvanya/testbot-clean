@@ -1,9 +1,10 @@
 from flask import Flask, request, jsonify
+import os
 import requests
 import instaloader
 import io
+import subprocess
 import time
-import http.cookiejar as cookiejar
 
 app = Flask(__name__)
 
@@ -14,20 +15,6 @@ MAX_DOC_SIZE_MB = 2000  # Максимальный размер для sendDocum
 TIMEOUT = 600  # Увеличенный таймаут для загрузки больших файлов
 
 active_downloads = set()  # Отслеживание активных загрузок
-
-# Куки, которые будут использоваться в Instaloader
-cookies = {
-    "csrftoken": "p94Qojf_ilLyDpL-eXEgI0",
-    "datr": "tk1hZ4bjkmZu0XD7MXWkp6uf",
-    "dpr": "1.5",
-    "ds_user_id": "72410561688",
-    "ig_did": "89774167-0C21-4E0A-A08A-3889E7DB267E",
-    "ig_nrcb": "1",
-    "mid": "Z2FNtgALAAEq1TlFdF4SNCvPOja5",
-    "rur": "\"CCO\\05472410561688\\0541771431164:01f703ff586ca5157830d7f52c97e7ccdc04df0dd1073d446dad429436b03a40c433a2d1\"",
-    "sessionid": "72410561688%3Ag0jFHGKsJ51Ptf%3A26%3AAYdrZLaeDjFVSpW9seBhudyLn8yurXkKWA6Ubf4VVg",
-    "wd": "1440x825"
-}
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -90,19 +77,6 @@ def delete_message(chat_id, message_id):
 def send_reels_video(chat_id, reels_url, user_name):
     try:
         loader = instaloader.Instaloader()
-
-        # Создаем объект cookie_jar
-        cj = cookiejar.CookieJar()
-        for cookie_name, cookie_value in cookies.items():
-            cookie = cookiejar.Cookie(version=0, name=cookie_name, value=cookie_value, port=None,
-                                      port_specified=False, domain=".instagram.com", domain_specified=True,
-                                      domain_initial_dot=True, path="/", path_specified=True, secure=False,
-                                      expires=None, discard=True, comment=None, comment_url=None, rest={})
-            cj.set_cookie(cookie)
-
-        # Устанавливаем cookies для Instaloader
-        loader.context.cookie_jar = cj
-
         shortcode = reels_url.split("/")[-2]
         post = instaloader.Post.from_shortcode(loader.context, shortcode)
         video_url = post.video_url
