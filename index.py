@@ -79,7 +79,7 @@ def send_reels_video(chat_id, reels_url, user_name):
         # Логинимся в Instagram с использованием аккаунта
         loader = instaloader.Instaloader()
         username = "reelscaster"  # Ваш логин Instagram
-        password = "Qwerty_1994"  # Ваш пароль Instagram
+        password = "Qwerty_132456"  # Ваш пароль Instagram
         
         # Отключаем сохранение сессии и логинимся
         loader.context.log("Logging in...")
