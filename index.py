@@ -1,8 +1,7 @@
 from flask import Flask, request, jsonify
 import requests
+import yt_dlp
 import io
-import subprocess
-import yt_dlp  # Импортируем yt-dlp
 
 app = Flask(__name__)
 
@@ -74,18 +73,22 @@ def delete_message(chat_id, message_id):
 
 def send_reels_video(chat_id, reels_url, user_name):
     try:
-        # Используем yt-dlp для загрузки видео
         ydl_opts = {
-            'format': 'bestvideo+bestaudio/best',  # Скачиваем лучший доступный формат
-            'quiet': True,  # Не показывать логи загрузки
-            'outtmpl': '-',  # Выводить в stdout (в память)
+            'format': 'bestvideo/best',  # Скачиваем только лучший видео поток
+            'quiet': True,  # Не показывать логи
+            'outtmpl': '-',  # Скачиваем в stdout (в память)
+            'noplaylist': True,  # Отключить обработку плейлистов
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             result = ydl.extract_info(reels_url, download=True)
-            video_content = ydl.extract(url=reels_url)
+            video_content = result['formats'][0]['url']  # Берем ссылку на лучший формат
 
         if video_content:
+            response = requests.get(video_content, stream=True, timeout=TIMEOUT)
+            response.raise_for_status()
+            video_content = response.content
+
             video_size_mb = len(video_content) / (1024 * 1024)
             print(f"Видео загружено, размер: {video_size_mb:.2f} MB")
 
