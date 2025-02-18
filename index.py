@@ -1,7 +1,9 @@
 from flask import Flask, request, jsonify
+import os
 import requests
 import yt_dlp
 import io
+import time
 
 app = Flask(__name__)
 
@@ -78,14 +80,15 @@ def send_reels_video(chat_id, reels_url, user_name):
             'quiet': True,  # Не показывать логи
             'outtmpl': '-',  # Скачиваем в stdout (в память)
             'noplaylist': True,  # Отключить обработку плейлистов
+            'no_check_certificate': True,  # Отключаем проверку сертификатов
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             result = ydl.extract_info(reels_url, download=True)
-            video_content = result['formats'][0]['url']  # Берем ссылку на лучший формат
+            video_url = result['formats'][0]['url']  # Берем ссылку на лучший формат
 
-        if video_content:
-            response = requests.get(video_content, stream=True, timeout=TIMEOUT)
+        if video_url:
+            response = requests.get(video_url, stream=True, timeout=TIMEOUT)
             response.raise_for_status()
             video_content = response.content
 
