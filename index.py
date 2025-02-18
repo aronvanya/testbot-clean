@@ -1,8 +1,8 @@
 from flask import Flask, request, jsonify
 import os
 import requests
-import subprocess
 import io
+import yt_dlp  # Используем yt-dlp
 import time
 
 app = Flask(__name__)
@@ -76,9 +76,14 @@ def delete_message(chat_id, message_id):
 def download_instagram_reel(url):
     """Скачивает видео из Instagram Reels через yt-dlp."""
     try:
-        command = ["yt-dlp", "-f", "b", "-o", "video.mp4", url]
-        subprocess.run(command, check=True)
-        with open("video.mp4", "rb") as video_file:
+        ydl_opts = {
+            'format': 'b',  # Лучший доступный формат
+            'outtmpl': 'video.mp4',  # Путь сохранения
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])  # Скачиваем видео
+
+        with open('video.mp4', 'rb') as video_file:
             return video_file.read()
     except Exception as e:
         print(f"Ошибка при загрузке видео: {e}")
@@ -102,7 +107,7 @@ def send_reels_video(chat_id, reels_url, user_name):
             send_video_as_stream(chat_id, video_content, user_name, width, height, duration)
         return True
     else:
-        print("Ошибка при загрузке видео.")
+        print("Видео не найдено в посте.")
         return False
 
 def send_video_as_stream(chat_id, video_content, user_name, width, height, duration):
