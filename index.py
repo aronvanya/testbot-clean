@@ -8,7 +8,7 @@ import time
 
 app = Flask(__name__)
 
-WEBHOOK_URL = "https://testbot-clean.vercel.app/webhook"
+WEBHOOK_URL = "https://testbot-clean.vercel.app"
 TELEGRAM_TOKEN = "7648873218:AAHRyASxpK_Rr-OU4anUzz65l2upjSlljp8"
 MAX_VIDEO_SIZE_MB = 50  # Максимальный размер для sendVideo (в МБ)
 MAX_DOC_SIZE_MB = 2000  # Максимальный размер для sendDocument (2 ГБ)
