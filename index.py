@@ -3,18 +3,16 @@ import os
 import requests
 import instaloader
 import io
-import subprocess
 import time
 
 app = Flask(__name__)
 
-WEBHOOK_URL = "https://testbot-clean.vercel.app/webhook"
-TELEGRAM_TOKEN = "7648873218:AAHRyASxpK_Rr-OU4anUzz65l2upjSlljp8"
-MAX_VIDEO_SIZE_MB = 50  # Максимальный размер для sendVideo (в МБ)
-MAX_DOC_SIZE_MB = 2000  # Максимальный размер для sendDocument (2 ГБ)
-TIMEOUT = 600  # Увеличенный таймаут для загрузки больших файлов
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+MAX_VIDEO_SIZE_MB = 50
+MAX_DOC_SIZE_MB = 2000
+TIMEOUT = 600
 
-active_downloads = set()  # Отслеживание активных загрузок
+active_downloads = set()
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -24,7 +22,6 @@ def webhook():
         chat_id = message["chat"]["id"]
         message_id = message["message_id"]
         text = message.get("text", "")
-
         user_name = message["from"].get("username", "пользователь")
 
         if text == "/start":
@@ -40,7 +37,7 @@ def webhook():
 
         if 'instagram.com/reel/' in text:
             if text in active_downloads:
-                print(f"⚠️ Запрос на загрузку видео {text} уже выполняется.")
+                print(f"⚠️ Запрос уже выполняется: {text}")
                 return jsonify({"message": "Duplicate request ignored"}), 200
             
             active_downloads.add(text)
@@ -55,10 +52,10 @@ def webhook():
                 send_message(chat_id, "❌ Не удалось скачать видео. Проверьте ссылку.")
             return jsonify({"message": "Reels link processed"}), 200
 
-    return jsonify({"message": "Webhook received!"}), 200
+    return jsonify({"message": "Webhook received"}), 200
 
-@app.route('/')
-def index():
+@app.route('/', methods=['GET'])
+def home():
     return "Server is running", 200
 
 def send_message(chat_id, text, parse_mode=None):
@@ -93,47 +90,37 @@ def send_reels_video(chat_id, reels_url, user_name):
                 send_message(chat_id, "❌ Видео слишком большое (более 2 ГБ). Telegram не поддерживает такие файлы.")
                 return False
             elif video_size_mb > MAX_VIDEO_SIZE_MB:
-                print("Видео слишком большое, отправляем как документ.")
                 send_video_as_document(chat_id, video_content, user_name)
             else:
-                width, height, duration = 720, 1280, 10  # Значения по умолчанию
-                send_video_as_stream(chat_id, video_content, user_name, width, height, duration)
+                send_video_as_stream(chat_id, video_content, user_name)
             return True
         else:
-            print("Видео не найдено в посте.")
+            print("Видео не найдено.")
             return False
     except Exception as e:
-        print(f"Ошибка при загрузке видео: {e}")
+        print(f"Ошибка: {e}")
         return False
 
-def send_video_as_stream(chat_id, video_content, user_name, width, height, duration):
+def send_video_as_stream(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo"
-    files = {"video": ("fixed_video.mp4", video_content, "video/mp4")}
+    files = {"video": ("reels.mp4", video_content, "video/mp4")}
     data = {
         "chat_id": chat_id,
-        "caption": f"📹 Видео от @{user_name} 🚀",
-        "width": width,
-        "height": height,
-        "duration": duration,
+        "caption": f"📹 Видео от @{user_name}",
         "supports_streaming": True
     }
-    response = requests.post(url, data=data, files=files, timeout=TIMEOUT)
-    if response.status_code != 200:
-        print(f"Ошибка при отправке видео: {response.status_code}, отправляем как документ.")
+    r = requests.post(url, files=files, data=data, timeout=TIMEOUT)
+    if r.status_code != 200:
+        print("Ошибка отправки, пробую как документ.")
         send_video_as_document(chat_id, video_content, user_name)
 
 def send_video_as_document(chat_id, video_content, user_name):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
-    video_buffer = io.BytesIO(video_content)
-    video_buffer.name = "original_video.mp4"
-    
-    files = {"document": (video_buffer.name, video_buffer, "video/mp4")}
+    buffer = io.BytesIO(video_content)
+    buffer.name = "reels.mp4"
+    files = {"document": (buffer.name, buffer, "video/mp4")}
     data = {
         "chat_id": chat_id,
-        "caption": f"📁 Видео от @{user_name} (отправлено как файл, чтобы избежать искажения)",
-        "allow_sending_without_reply": True
+        "caption": f"📁 Видео от @{user_name}"
     }
-    response = requests.post(url, files=files, data=data, timeout=TIMEOUT)
-
-if __name__ == '__main__':
-    app.run(debug=True)
+    requests.post(url, files=files, data=data, timeout=TIMEOUT)
