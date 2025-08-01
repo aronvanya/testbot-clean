@@ -3,13 +3,16 @@ import os
 import requests
 import instaloader
 import io
-import subprocess
 import time
+from dotenv import load_dotenv
+
+# Загрузка переменных окружения из .env
+load_dotenv()
 
 app = Flask(__name__)
 
-WEBHOOK_URL = "https://testbot-clean.vercel.app/webhook"
-TELEGRAM_TOKEN = "7648873218:AAGs6RZlBrVjr1TkmMjO-jvoFT8PxXvSjyM"
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 MAX_VIDEO_SIZE_MB = 50  # Максимальный размер для sendVideo (в МБ)
 MAX_DOC_SIZE_MB = 2000  # Максимальный размер для sendDocument (2 ГБ)
 TIMEOUT = 600  # Увеличенный таймаут для загрузки больших файлов
@@ -133,7 +136,7 @@ def send_video_as_document(chat_id, video_content, user_name):
         "caption": f"📁 Видео от @{user_name} (отправлено как файл, чтобы избежать искажения)",
         "allow_sending_without_reply": True
     }
-    response = requests.post(url, files=files, data=data, timeout=TIMEOUT)
+    requests.post(url, files=files, data=data, timeout=TIMEOUT)
 
 if __name__ == '__main__':
     app.run(debug=True)
