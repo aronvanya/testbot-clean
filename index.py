@@ -57,7 +57,7 @@ def home():
 
 
 def convert_to_kksave(url):
-    return re.sub(r"instagram\.com", "kksave.com", url)
+    return re.sub(r"instagram\.com", "kksav.com", url)
 
 
 def send_message(chat_id, text, thread_id=None):
