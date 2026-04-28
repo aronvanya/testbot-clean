@@ -9,6 +9,9 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 
 REEL_PATTERN = r"(https?://(?:www\.)?(?:instagram\.com|instagr\.am)/reel/[^\s]+)"
 
+TARGET_BOT_USERNAME = "The_Riffa_bot"
+NOTIFY_USERNAME = "@DenisSadykov"
+
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -21,9 +24,12 @@ def webhook():
         text = message.get("text", "")
         thread_id = message.get("message_thread_id")
 
-        # 👇 получаем пользователя
         user = message.get("from", {})
         user_name = get_user_name(user)
+
+        # 👇 реакция на конкретного бота
+        if user.get("is_bot") and user.get("username") == TARGET_BOT_USERNAME:
+            notify_user(chat_id, thread_id)
 
         if text == "/start":
             send_message(chat_id, (
@@ -37,18 +43,14 @@ def webhook():
 
         if matches:
             for link in matches:
-                # пропускаем если уже kksav
                 if "kksav" in link:
                     continue
 
                 new_link = convert_to_kksave(link)
 
-                # 👇 сообщение с ником
                 text_to_send = f"Это видео прислал Осёл - {user_name}\n{new_link}"
-
                 send_message(chat_id, text_to_send, thread_id=thread_id)
 
-            # удаляем сообщение пользователя (если есть права)
             try:
                 delete_message(chat_id, message_id)
             except:
@@ -64,7 +66,21 @@ def home():
     return "Server is running", 200
 
 
-# 👇 функция получения имени
+def notify_user(chat_id, thread_id=None):
+    text = f"⚠️ Сообщение от бота!\n{NOTIFY_USERNAME}, посмотри"
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text
+    }
+
+    if thread_id:
+        payload["message_thread_id"] = thread_id
+
+    requests.post(url, json=payload)
+
+
 def get_user_name(user):
     username = user.get("username")
     first_name = user.get("first_name", "")
