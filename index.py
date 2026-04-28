@@ -9,6 +9,7 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 
 REEL_PATTERN = r"(https?://(?:www\.)?(?:instagram\.com|instagr\.am)/reel/[^\s]+)"
 
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.get_json()
@@ -19,6 +20,10 @@ def webhook():
         message_id = message["message_id"]
         text = message.get("text", "")
         thread_id = message.get("message_thread_id")
+
+        # 👇 получаем пользователя
+        user = message.get("from", {})
+        user_name = get_user_name(user)
 
         if text == "/start":
             send_message(chat_id, (
@@ -32,13 +37,16 @@ def webhook():
 
         if matches:
             for link in matches:
-                # пропускаем если уже kksave
-                if "kksave" in link:
+                # пропускаем если уже kksav
+                if "kksav" in link:
                     continue
 
                 new_link = convert_to_kksave(link)
 
-                send_message(chat_id, new_link, thread_id=thread_id)
+                # 👇 сообщение с ником
+                text_to_send = f"Это видео прислал Осёл - {user_name}\n{new_link}"
+
+                send_message(chat_id, text_to_send, thread_id=thread_id)
 
             # удаляем сообщение пользователя (если есть права)
             try:
@@ -54,6 +62,19 @@ def webhook():
 @app.route('/', methods=['GET'])
 def home():
     return "Server is running", 200
+
+
+# 👇 функция получения имени
+def get_user_name(user):
+    username = user.get("username")
+    first_name = user.get("first_name", "")
+    last_name = user.get("last_name", "")
+
+    if username:
+        return f"@{username}"
+
+    full_name = f"{first_name} {last_name}".strip()
+    return full_name if full_name else "кто-то"
 
 
 def convert_to_kksave(url):
