@@ -9,9 +9,6 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 
 REEL_PATTERN = r"(https?://(?:www\.)?(?:instagram\.com|instagr\.am)/reel/[^\s]+)"
 
-TARGET_BOT_USERNAME = "The_Riffa_bot"
-NOTIFY_USERNAME = "@DenisSadykov"
-
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -27,26 +24,26 @@ def webhook():
         user = message.get("from", {})
         user_name = get_user_name(user)
 
-        # 👇 реакция на конкретного бота
-        if user.get("is_bot") and user.get("username") == TARGET_BOT_USERNAME:
-            notify_user(chat_id, thread_id)
-
         if text == "/start":
-            send_message(chat_id, (
-                "👋 Привет!\n\n"
-                "Отправь ссылку на Instagram Reels — я дам ссылку для скачивания. 📥\n\n"
-                "Работает и в группах 🚀"
-            ), thread_id=thread_id)
+            send_message(
+                chat_id,
+                (
+                    "👋 Привет!\n\n"
+                    "Отправь ссылку на Instagram Reels — я дам ссылку для скачивания. 📥\n\n"
+                    "Работает и в группах 🚀"
+                ),
+                thread_id=thread_id
+            )
             return jsonify({"message": "Start command processed"}), 200
 
         matches = re.findall(REEL_PATTERN, text)
 
         if matches:
             for link in matches:
-                if "kksav" in link:
+                if "kk.com" in link:
                     continue
 
-                new_link = convert_to_kksave(link)
+                new_link = convert_to_kk(link)
 
                 text_to_send = f"Это видео прислал Осёл - {user_name}\n{new_link}"
                 send_message(chat_id, text_to_send, thread_id=thread_id)
@@ -66,21 +63,6 @@ def home():
     return "Server is running", 200
 
 
-def notify_user(chat_id, thread_id=None):
-    text = f"⚠️ Сообщение от бота!\n{NOTIFY_USERNAME}, посмотри"
-
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": text
-    }
-
-    if thread_id:
-        payload["message_thread_id"] = thread_id
-
-    requests.post(url, json=payload)
-
-
 def get_user_name(user):
     username = user.get("username")
     first_name = user.get("first_name", "")
@@ -93,8 +75,8 @@ def get_user_name(user):
     return full_name if full_name else "кто-то"
 
 
-def convert_to_kksave(url):
-    return re.sub(r"instagram\.com", "kksav.com", url)
+def convert_to_kk(url):
+    return re.sub(r"instagram\.com", "kk.com", url)
 
 
 def send_message(chat_id, text, thread_id=None):
@@ -118,3 +100,7 @@ def delete_message(chat_id, message_id):
         "message_id": message_id
     }
     requests.post(url, json=payload)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
