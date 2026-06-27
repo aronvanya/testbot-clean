@@ -25,25 +25,21 @@ def webhook():
         user_name = get_user_name(user)
 
         if text == "/start":
-            send_message(
-                chat_id,
-                (
-                    "👋 Привет!\n\n"
-                    "Отправь ссылку на Instagram Reels — я дам ссылку для скачивания. 📥\n\n"
-                    "Работает и в группах 🚀"
-                ),
-                thread_id=thread_id
-            )
+            send_message(chat_id, (
+                "👋 Привет!\n\n"
+                "Отправь ссылку на Instagram Reels — я дам ссылку для скачивания. 📥\n\n"
+                "Работает и в группах 🚀"
+            ), thread_id=thread_id)
             return jsonify({"message": "Start command processed"}), 200
 
         matches = re.findall(REEL_PATTERN, text)
 
         if matches:
             for link in matches:
-                if "kk.com" in link:
+                if "kkinstagram" in link:
                     continue
 
-                new_link = convert_to_kk(link)
+                new_link = convert_to_kksave(link)
 
                 text_to_send = f"Это видео прислал Осёл - {user_name}\n{new_link}"
                 send_message(chat_id, text_to_send, thread_id=thread_id)
@@ -75,8 +71,8 @@ def get_user_name(user):
     return full_name if full_name else "кто-то"
 
 
-def convert_to_kk(url):
-    return re.sub(r"instagram\.com", "kk.com", url)
+def convert_to_kksave(url):
+    return re.sub(r"instagram\.com", "kkinstagram.com", url)
 
 
 def send_message(chat_id, text, thread_id=None):
